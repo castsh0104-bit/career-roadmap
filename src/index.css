@@ -194,3 +194,119 @@ body {
   border-radius: 9999px;
   transition: width 0.5s ease-in-out;
 }
+
+/* --- 마이페이지 & 로드맵 가이드 스타일 --- */
+.mypage-container {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.mypage-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.mypage-title {
+  font-size: 2rem;
+  font-weight: bold;
+}
+
+.tab-menu {
+  display: flex;
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 2rem;
+}
+
+.tab-button {
+  padding: 1rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 1rem;
+  color: inherit;
+}
+
+.tab-button.active {
+  font-weight: bold;
+  border-bottom: 2px solid #2563eb;
+  color: #2563eb;
+}
+
+.info-box {
+  background: white;
+  padding: 2rem;
+  border-radius: 0.5rem;
+  border: 1px solid #e5e7eb;
+  line-height: 1.8;
+}
+
+.info-box h3 {
+  font-size: 1.25rem;
+  font-weight: bold;
+  margin-top: 0;
+}
+
+.form-box {
+  margin: 0 !important;
+  max-width: 100% !important;
+  box-shadow: none !important;
+  padding: 2rem;
+  border: 1px solid #e5e7eb;
+}
+
+.form-box h3 {
+  font-size: 1.25rem;
+  font-weight: bold;
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+}
+
+.activity-list-item {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid #e5e7eb;
+  margin-bottom: 1rem;
+  position: relative;
+}
+
+.activity-type-badge {
+  background-color: #e0e7ff;
+  color: #3730a3;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+}
+
+.activity-title {
+  font-weight: bold;
+  margin: 0.75rem 0 0.25rem 0;
+  font-size: 1.125rem;
+}
+
+.activity-date {
+  color: #6b7280;
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.activity-desc {
+  margin-top: 0.75rem;
+  color: #374151;
+}
+
+.delete-button {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #9ca3af;
+  font-size: 1.25rem;
+  padding: 0.5rem;
+  line-height: 1;
+}
