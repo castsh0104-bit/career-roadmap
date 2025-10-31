@@ -17,9 +17,12 @@ import {
   query,
   where,
   type Timestamp,
+  documentId,
+  // 만약 여기서 documentId()가 안 되면 위 줄 말고 아래 걸 쓰세요:
+  // FieldPath,
 } from 'firebase/firestore';
 
-// --- 타입 정의 ---
+// ---------------------- 타입 정의 ----------------------
 interface MyActivity {
   id: string;
   type: '인턴' | '공모전' | '자격증' | '기타';
@@ -35,6 +38,7 @@ interface UserProfile {
   grade?: number;
   major?: string;
   completedActivities?: MyActivity[];
+  likedActivityIds?: string[];
 }
 
 type ActivityCategory = '채용' | '인턴' | '공모전' | '자격증';
@@ -65,7 +69,7 @@ interface RoadmapStep {
   recommendedCompetencies: string[];
 }
 
-// --- 공통 유틸 / 아이콘 ---
+// ---------------------- 공통 유틸/아이콘 ----------------------
 const BuildingIcon = () => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -101,6 +105,24 @@ const LocationIcon = () => (
   </svg>
 );
 
+// 하트 아이콘
+const LikeIcon = ({ isLiked }: { isLiked: boolean }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    style={{ height: '1.5rem', width: '1.5rem' }}
+    viewBox="0 0 20 20"
+    fill={isLiked ? '#ef4444' : 'currentColor'}
+    stroke={isLiked ? '#ef4444' : 'currentColor'}
+    strokeWidth={isLiked ? 0 : 1.5}
+  >
+    <path
+      fillRule="evenodd"
+      d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z"
+      clipRule="evenodd"
+    />
+  </svg>
+);
+
 const convertFirestoreTimestampToDate = (timestamp: Timestamp): Date => {
   if (!timestamp || typeof (timestamp as any).toDate !== 'function') return new Date();
   return timestamp.toDate();
@@ -122,7 +144,108 @@ const calculateDday = (deadline: Timestamp) => {
   );
 };
 
-// --- 헤더 ---
+//
+// =====================================================
+// [수정 1] ActivityCard를 위로 올려서, 아래 MyPage/Dashboard에서 바로 사용 가능하게
+// =====================================================
+function ActivityCard({
+  activity,
+  userCompetencies,
+  isLiked,
+  onToggleLike,
+}: {
+  activity: ActivityWithMatchRate;
+  userCompetencies: string[];
+  isLiked: boolean;
+  onToggleLike: (activityId: string) => void;
+}) {
+  const { matchRate } = activity;
+  const deadlineDate = convertFirestoreTimestampToDate(activity.applicationDeadline);
+  const formattedDeadline = `${deadlineDate.getFullYear()}.${String(deadlineDate.getMonth() + 1).padStart(
+    2,
+    '0',
+  )}.${String(deadlineDate.getDate()).padStart(2, '0')}`;
+  const lowerUserCompetencies = (userCompetencies || []).map((s) => s.toLowerCase());
+
+  return (
+    <div className="activity-card" style={{ position: 'relative' }}>
+      {/* 관심 토글 버튼 */}
+      <button
+        onClick={() => onToggleLike(activity.id)}
+        style={{
+          position: 'absolute',
+          top: '1.25rem',
+          right: '1.25rem',
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          color: '#9ca3af',
+        }}
+        aria-label="관심 활동으로 추가"
+      >
+        <LikeIcon isLiked={isLiked} />
+      </button>
+
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          marginBottom: '0.75rem',
+        }}
+      >
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', fontSize: '1rem', fontWeight: 'bold' }}>
+            <BuildingIcon />
+            <span>{activity.companyName || '회사정보 없음'}</span>
+          </div>
+          <span className="activity-type-badge">{activity.employmentType || '정보 없음'}</span>
+        </div>
+        <div style={{ textAlign: 'right', paddingRight: '2rem' }}>
+          <div style={{ fontWeight: '800', fontSize: '1.125rem' }}>{calculateDday(activity.applicationDeadline)}</div>
+          <p className="activity-date">~{formattedDeadline}</p>
+        </div>
+      </div>
+      <h3 className="activity-title">{activity.title}</h3>
+      <p className="activity-content">{activity.content}</p>
+      <div
+        style={{ display: 'flex', alignItems: 'center', fontSize: '0.875rem', color: '#6b7280', marginBottom: '1rem' }}
+      >
+        <LocationIcon />
+        <span>{activity.location || '근무지 정보 없음'}</span>
+      </div>
+      <div style={{ marginTop: 'auto' }}>
+        <h4 style={{ fontWeight: '600', marginBottom: '0.5rem' }}>요구 역량:</h4>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+          {(activity.requiredCompetencies || []).map((competency) => (
+            <span
+              key={competency}
+              className={
+                lowerUserCompetencies.includes(competency.toLowerCase()) ? 'skill-tag skill-tag-match' : 'skill-tag'
+              }
+            >
+              {competency}
+            </span>
+          )) || '요구 역량 정보 없음'}
+        </div>
+      </div>
+      <div style={{ marginTop: '1.5rem' }}>
+        <p style={{ fontWeight: 'bold', fontSize: '1.125rem' }}>나의 역량 매칭률: {matchRate}%</p>
+        <div className="match-rate-bar-bg" style={{ marginTop: '0.5rem' }}>
+          <div
+            className="match-rate-bar"
+            style={{
+              width: `${matchRate}%`,
+              backgroundColor: matchRate > 70 ? '#22c55e' : matchRate > 40 ? '#f59e0b' : '#ef4444',
+            }}
+          ></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------- 헤더 ----------------------
 const Header = ({ user, onSignOut }: { user: User | null; onSignOut: () => void }) => (
   <header className="header">
     <nav className="nav">
@@ -138,7 +261,7 @@ const Header = ({ user, onSignOut }: { user: User | null; onSignOut: () => void 
   </header>
 );
 
-// --- 인증 폼 ---
+// ---------------------- 인증 폼 ----------------------
 const AuthForm = ({
   view,
   setView,
@@ -187,25 +310,251 @@ const AuthForm = ({
   </div>
 );
 
-// --- 마이페이지 ---
+// ---------------------- 온보딩 폼 ----------------------
+const OnboardingForm = ({ user, onComplete }: { user: User; onComplete: (updated: UserProfile) => void }) => {
+  const [grade, setGrade] = useState('');
+  const [major, setMajor] = useState('');
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!grade || !major) {
+      alert('모든 항목을 선택해주세요.');
+      return;
+    }
+    const userDocRef = doc(db, 'users', user.uid);
+    const userDoc = await getDoc(userDocRef);
+    if (userDoc.exists()) {
+      const currentProfile = userDoc.data() as UserProfile;
+      const updatedProfile: UserProfile = {
+        ...currentProfile,
+        grade: parseInt(grade),
+        major: major,
+      };
+      try {
+        await setDoc(userDocRef, updatedProfile, { merge: true });
+        alert('정보가 저장되었습니다!');
+        onComplete(updatedProfile);
+      } catch (error) {
+        console.error('Onboarding error: ', error);
+        alert('정보 저장에 실패했습니다.');
+      }
+    }
+  };
+
+  return (
+    <div className="auth-form-container" style={{ textAlign: 'center' }}>
+      <h2>환영합니다!</h2>
+      <p style={{ marginBottom: '2rem', color: '#4b5563' }}>
+        정확한 로드맵 추천을 위해 추가 정보를 입력해주세요.
+      </p>
+      <form onSubmit={handleSubmit}>
+        <div className="input-group" style={{ textAlign: 'left' }}>
+          <label htmlFor="grade">학년</label>
+          <select
+            id="grade"
+            value={grade}
+            onChange={(e) => setGrade(e.target.value)}
+            className="input"
+            required
+          >
+            <option value="" disabled>
+              학년을 선택하세요
+            </option>
+            <option value="1">1학년</option>
+            <option value="2">2학년</option>
+            <option value="3">3학년</option>
+            <option value="4">4학년</option>
+            <option value="5">졸업생</option>
+          </select>
+        </div>
+        <div className="input-group" style={{ textAlign: 'left' }}>
+          <label htmlFor="major">전공 계열</label>
+          <select
+            id="major"
+            value={major}
+            onChange={(e) => setMajor(e.target.value)}
+            className="input"
+            required
+          >
+            <option value="" disabled>
+              전공 계열을 선택하세요
+            </option>
+            <option value="컴퓨터공학/소프트웨어">컴퓨터공학/소프트웨어</option>
+            <option value="기계공학">기계공학</option>
+            <option value="전자전기공학">전자전기공학</option>
+            <option value="화학공학">화학공학</option>
+          </select>
+        </div>
+        <button type="submit" className="button button-primary" style={{ marginTop: '1rem' }}>
+          로드맵 추천 시작하기
+        </button>
+      </form>
+    </div>
+  );
+};
+
+// ---------------------- 로드맵 가이드 ----------------------
+const RoadmapGuide = ({ userProfile }: { userProfile: UserProfile }) => {
+  const [roadmapStep, setRoadmapStep] = useState<RoadmapStep | null>(null);
+
+  useEffect(() => {
+    const fetchRoadmap = async () => {
+      if (userProfile.major && userProfile.grade) {
+        const roadmapId = userProfile.major.replace('/', ','); // firestore 문서 id에 / 못씀
+        const roadmapDocRef = doc(db, 'roadmaps', roadmapId);
+        const roadmapDoc = await getDoc(roadmapDocRef);
+        if (roadmapDoc.exists()) {
+          const roadmapData = roadmapDoc.data() as { steps: RoadmapStep[] };
+          const currentStep = (roadmapData.steps || []).find((step) => step.grade === userProfile.grade);
+          setRoadmapStep(currentStep || null);
+        } else {
+          console.log(`No roadmap found for: ${roadmapId}`);
+          setRoadmapStep(null);
+        }
+      }
+    };
+    fetchRoadmap();
+  }, [userProfile]);
+
+  if (!roadmapStep) {
+    return (
+      <div className="info-box" style={{ textAlign: 'center' }}>
+        <p>
+          아직 {userProfile.major} 전공의 {userProfile.grade}학년 로드맵이 준비되지 않았습니다.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="info-box" style={{ marginBottom: '2rem' }}>
+      <h2
+        style={{
+          fontSize: '1.5rem',
+          fontWeight: 'bold',
+          borderBottom: '2px solid #2563eb',
+          paddingBottom: '1rem',
+          marginBottom: '1rem',
+          marginTop: 0,
+        }}
+      >
+        {userProfile.name}님을 위한 {roadmapStep.grade}학년 맞춤 로드맵
+      </h2>
+      <h3 className="activity-title">{roadmapStep.title}</h3>
+      <p className="activity-content">{roadmapStep.description}</p>
+      <h4 style={{ fontWeight: 'bold', marginTop: '1.5rem' }}>추천 활동:</h4>
+      <ul style={{ paddingLeft: '20px', listStyle: 'disc' }}>
+        {(roadmapStep.recommendations || []).map((rec, index) => (
+          <li key={index} style={{ marginBottom: '0.5rem' }}>
+            {rec}
+          </li>
+        ))}
+      </ul>
+      <div style={{ marginTop: '1.5rem' }}>
+        <h4 style={{ fontWeight: 'bold' }}>추천 역량:</h4>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
+          {(roadmapStep.recommendedCompetencies || []).map((comp) => (
+            <span key={comp} className="skill-tag">
+              {comp}
+            </span>
+          ))}
+        </div>
+        <p style={{ fontSize: '0.875rem', color: '#6b7280', marginTop: '1rem' }}>
+          이 역량들을 '프로필 수정'에 추가하고 관련 활동들을 찾아보세요!
+        </p>
+      </div>
+    </div>
+  );
+};
+
+// ---------------------- 마이페이지 ----------------------
 const MyPage = ({
   userProfile,
   uid,
   setView,
+  onToggleLike,
 }: {
   userProfile: UserProfile;
   uid: string;
   setView: (view: 'dashboard') => void;
+  onToggleLike: (activityId: string) => void;
 }) => {
-  const [activeTab, setActiveTab] = useState<'info' | 'history'>('info');
+  const [activeTab, setActiveTab] = useState<'info' | 'history' | 'likes'>('info');
   const [competencies, setCompetencies] = useState((userProfile.competencies || []).join(', '));
   const [myActivities, setMyActivities] = useState<MyActivity[]>(userProfile.completedActivities || []);
   const [message, setMessage] = useState('');
-
   const [newActivityType, setNewActivityType] = useState<'인턴' | '공모전' | '자격증' | '기타'>('인턴');
   const [newActivityTitle, setNewActivityTitle] = useState('');
   const [newActivityDate, setNewActivityDate] = useState('');
   const [newActivityDesc, setNewActivityDesc] = useState('');
+  const [likedActivities, setLikedActivities] = useState<ActivityWithMatchRate[]>([]);
+  const [isLikeLoading, setIsLikeLoading] = useState(false);
+
+  // 대시보드랑 똑같은 매칭률 계산
+  const getMatchRate = (activity: Activity, userCompetencies: string[]): number => {
+    if (
+      !userCompetencies ||
+      userCompetencies.length === 0 ||
+      !activity.requiredCompetencies ||
+      activity.requiredCompetencies.length === 0
+    ) {
+      return 0;
+    }
+    const lowerUserCompetencies = userCompetencies.map((s) => s.toLowerCase());
+    const lowerRequiredCompetencies = activity.requiredCompetencies.map((s) => s.toLowerCase());
+    const matchCount = lowerRequiredCompetencies.filter((c) => lowerUserCompetencies.includes(c)).length;
+    return Math.round((matchCount / lowerRequiredCompetencies.length) * 100);
+  };
+
+  // =====================================================
+  // [수정 2] 관심 활동 탭: likedActivityIds를 10개씩 나눠서 불러오기
+  // =====================================================
+  useEffect(() => {
+    if (activeTab !== 'likes') return;
+
+    const fetchLikedActivities = async () => {
+      setIsLikeLoading(true);
+      const likedIds = userProfile.likedActivityIds || [];
+
+      if (likedIds.length === 0) {
+        setLikedActivities([]);
+        setIsLikeLoading(false);
+        return;
+      }
+
+      try {
+        const activitiesRef = collection(db, 'activities');
+        const MAX_IN = 10;
+        const allActivities: ActivityWithMatchRate[] = [];
+
+        for (let i = 0; i < likedIds.length; i += MAX_IN) {
+          const chunk = likedIds.slice(i, i + MAX_IN);
+
+          const q = query(activitiesRef, where(documentId(), 'in', chunk));
+          // documentId()가 버전에서 안 되면:
+          // const q = query(activitiesRef, where(FieldPath.documentId(), 'in', chunk));
+
+          const snap = await getDocs(q);
+          snap.forEach((docSnap) => {
+            const activity = { id: docSnap.id, ...docSnap.data() } as Activity;
+            allActivities.push({
+              ...activity,
+              matchRate: getMatchRate(activity, userProfile.competencies || []),
+            });
+          });
+        }
+
+        setLikedActivities(allActivities);
+      } catch (error) {
+        console.error('Error fetching liked activities: ', error);
+        setLikedActivities([]);
+      } finally {
+        setIsLikeLoading(false);
+      }
+    };
+
+    fetchLikedActivities();
+  }, [activeTab, userProfile]);
 
   const getPlaceholderText = () => {
     switch (userProfile.major) {
@@ -230,9 +579,7 @@ const MyPage = ({
     try {
       await setDoc(userDocRef, { competencies: competenciesArray }, { merge: true });
       setMessage('역량 정보가 성공적으로 업데이트되었습니다!');
-      setTimeout(() => {
-        setMessage('');
-      }, 2000);
+      setTimeout(() => setMessage(''), 2000);
     } catch (error) {
       console.error('Competency update error: ', error);
       setMessage('업데이트에 실패했습니다.');
@@ -270,7 +617,6 @@ const MyPage = ({
 
   const handleDeleteActivity = async (activityId: string) => {
     if (!window.confirm('정말로 이 활동 기록을 삭제하시겠습니까?')) return;
-
     const updatedActivities = myActivities.filter((act) => act.id !== activityId);
     const userDocRef = doc(db, 'users', uid);
     try {
@@ -303,6 +649,12 @@ const MyPage = ({
           className={`tab-button ${activeTab === 'history' ? 'active' : ''}`}
         >
           나의 활동 기록
+        </button>
+        <button
+          onClick={() => setActiveTab('likes')}
+          className={`tab-button ${activeTab === 'likes' ? 'active' : ''}`}
+        >
+          관심 활동
         </button>
       </div>
 
@@ -422,240 +774,49 @@ const MyPage = ({
           )}
         </div>
       )}
-    </div>
-  );
-};
 
-// --- 온보딩 폼 ---
-const OnboardingForm = ({ user, onComplete }: { user: User; onComplete: (updated: UserProfile) => void }) => {
-  const [grade, setGrade] = useState('');
-  const [major, setMajor] = useState('');
-
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!grade || !major) {
-      alert('모든 항목을 선택해주세요.');
-      return;
-    }
-    const userDocRef = doc(db, 'users', user.uid);
-    const userDoc = await getDoc(userDocRef);
-    if (userDoc.exists()) {
-      const currentProfile = userDoc.data() as UserProfile;
-      const updatedProfile: UserProfile = {
-        ...currentProfile,
-        grade: parseInt(grade),
-        major: major,
-      };
-      try {
-        await setDoc(userDocRef, updatedProfile, { merge: true });
-        alert('정보가 저장되었습니다!');
-        onComplete(updatedProfile);
-      } catch (error) {
-        console.error('Onboarding error: ', error);
-        alert('정보 저장에 실패했습니다.');
-      }
-    }
-  };
-
-  return (
-    <div className="auth-form-container" style={{ textAlign: 'center' }}>
-      <h2>환영합니다!</h2>
-      <p style={{ marginBottom: '2rem', color: '#4b5563' }}>
-        정확한 로드맵 추천을 위해 추가 정보를 입력해주세요.
-      </p>
-      <form onSubmit={handleSubmit}>
-        <div className="input-group" style={{ textAlign: 'left' }}>
-          <label htmlFor="grade">학년</label>
-          <select
-            id="grade"
-            value={grade}
-            onChange={(e) => setGrade(e.target.value)}
-            className="input"
-            required
-          >
-            <option value="" disabled>
-              학년을 선택하세요
-            </option>
-            <option value="1">1학년</option>
-            <option value="2">2학년</option>
-            <option value="3">3학년</option>
-            <option value="4">4학년</option>
-            <option value="5">졸업생</option>
-          </select>
-        </div>
-        <div className="input-group" style={{ textAlign: 'left' }}>
-          <label htmlFor="major">전공 계열</label>
-          <select
-            id="major"
-            value={major}
-            onChange={(e) => setMajor(e.target.value)}
-            className="input"
-            required
-          >
-            <option value="" disabled>
-              전공 계열을 선택하세요
-            </option>
-            <option value="컴퓨터공학/소프트웨어">컴퓨터공학/소프트웨어</option>
-            <option value="기계공학">기계공학</option>
-            <option value="전자전기공학">전자전기공학</option>
-            <option value="화학공학">화학공학</option>
-          </select>
-        </div>
-        <button type="submit" className="button button-primary" style={{ marginTop: '1rem' }}>
-          로드맵 추천 시작하기
-        </button>
-      </form>
-    </div>
-  );
-};
-
-// --- 활동 카드 ---
-const ActivityCard = ({ activity, userCompetencies }: { activity: ActivityWithMatchRate; userCompetencies: string[] }) => {
-  const { matchRate } = activity;
-  const deadlineDate = convertFirestoreTimestampToDate(activity.applicationDeadline);
-  const formattedDeadline = `${deadlineDate.getFullYear()}.${String(deadlineDate.getMonth() + 1).padStart(
-    2,
-    '0',
-  )}.${String(deadlineDate.getDate()).padStart(2, '0')}`;
-  const lowerUserCompetencies = (userCompetencies || []).map((s) => s.toLowerCase());
-
-  return (
-    <div className="activity-card">
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          marginBottom: '0.75rem',
-        }}
-      >
+      {activeTab === 'likes' && (
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', fontSize: '1rem', fontWeight: 'bold' }}>
-            <BuildingIcon />
-            <span>{activity.companyName || '회사정보 없음'}</span>
-          </div>
-          <span className="activity-type-badge">{activity.employmentType || '정보 없음'}</span>
+          <h3 className="mypage-title" style={{ fontSize: '1.25rem' }}>
+            내가 관심있는 활동
+          </h3>
+          {isLikeLoading ? (
+            <div className="info-box" style={{ textAlign: 'center' }}>
+              <p>관심 활동을 불러오는 중입니다...</p>
+            </div>
+          ) : likedActivities.length > 0 ? (
+            <div className="activity-grid">
+              {likedActivities.map((activity) => (
+                <ActivityCard
+                  key={activity.id}
+                  activity={activity}
+                  userCompetencies={userProfile.competencies}
+                  isLiked={(userProfile.likedActivityIds || []).includes(activity.id)}
+                  onToggleLike={onToggleLike}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="info-box" style={{ textAlign: 'center' }}>
+              <p>아직 관심 활동으로 표시한 내역이 없습니다.</p>
+            </div>
+          )}
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontWeight: '800', fontSize: '1.125rem' }}>{calculateDday(activity.applicationDeadline)}</div>
-          <p className="activity-date">~{formattedDeadline}</p>
-        </div>
-      </div>
-      <h3 className="activity-title">{activity.title}</h3>
-      <p className="activity-content">{activity.content}</p>
-      <div style={{ display: 'flex', alignItems: 'center', fontSize: '0.875rem', color: '#6b7280', marginBottom: '1rem' }}>
-        <LocationIcon />
-        <span>{activity.location || '근무지 정보 없음'}</span>
-      </div>
-      <div style={{ marginTop: 'auto' }}>
-        <h4 style={{ fontWeight: '600', marginBottom: '0.5rem' }}>요구 역량:</h4>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-          {(activity.requiredCompetencies || []).map((competency) => (
-            <span
-              key={competency}
-              className={
-                lowerUserCompetencies.includes(competency.toLowerCase())
-                  ? 'skill-tag skill-tag-match'
-                  : 'skill-tag'
-              }
-            >
-              {competency}
-            </span>
-          )) || '요구 역량 정보 없음'}
-        </div>
-      </div>
-      <div style={{ marginTop: '1.5rem' }}>
-        <p style={{ fontWeight: 'bold', fontSize: '1.125rem' }}>나의 역량 매칭률: {matchRate}%</p>
-        <div className="match-rate-bar-bg" style={{ marginTop: '0.5rem' }}>
-          <div
-            className="match-rate-bar"
-            style={{
-              width: `${matchRate}%`,
-              backgroundColor: matchRate > 70 ? '#22c55e' : matchRate > 40 ? '#f59e0b' : '#ef4444',
-            }}
-          ></div>
-        </div>
-      </div>
+      )}
     </div>
   );
 };
 
-// --- 로드맵 가이드 ---
-const RoadmapGuide = ({ userProfile }: { userProfile: UserProfile }) => {
-  const [roadmapStep, setRoadmapStep] = useState<RoadmapStep | null>(null);
-
-  useEffect(() => {
-    const fetchRoadmap = async () => {
-      if (userProfile.major && userProfile.grade) {
-        const roadmapId = userProfile.major.replace('/', ','); // firestore 문서 id에 / 못씀
-        const roadmapDocRef = doc(db, 'roadmaps', roadmapId);
-        const roadmapDoc = await getDoc(roadmapDocRef);
-        if (roadmapDoc.exists()) {
-          const roadmapData = roadmapDoc.data() as { steps: RoadmapStep[] };
-          const currentStep = (roadmapData.steps || []).find((step) => step.grade === userProfile.grade);
-          setRoadmapStep(currentStep || null);
-        } else {
-          console.log(`No roadmap found for: ${roadmapId}`);
-          setRoadmapStep(null);
-        }
-      }
-    };
-    fetchRoadmap();
-  }, [userProfile]);
-
-  if (!roadmapStep) {
-    return (
-      <div className="info-box" style={{ textAlign: 'center' }}>
-        <p>
-          아직 {userProfile.major} 전공의 {userProfile.grade}학년 로드맵이 준비되지 않았습니다.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="info-box" style={{ marginBottom: '2rem' }}>
-      <h2
-        style={{
-          fontSize: '1.5rem',
-          fontWeight: 'bold',
-          borderBottom: '2px solid #2563eb',
-          paddingBottom: '1rem',
-          marginBottom: '1rem',
-          marginTop: 0,
-        }}
-      >
-        {userProfile.name}님을 위한 {roadmapStep.grade}학년 맞춤 로드맵
-      </h2>
-      <h3 className="activity-title">{roadmapStep.title}</h3>
-      <p className="activity-content">{roadmapStep.description}</p>
-      <h4 style={{ fontWeight: 'bold', marginTop: '1.5rem' }}>추천 활동:</h4>
-      <ul style={{ paddingLeft: '20px', listStyle: 'disc' }}>
-        {(roadmapStep.recommendations || []).map((rec, index) => (
-          <li key={index} style={{ marginBottom: '0.5rem' }}>
-            {rec}
-          </li>
-        ))}
-      </ul>
-      <div style={{ marginTop: '1.5rem' }}>
-        <h4 style={{ fontWeight: 'bold' }}>추천 역량:</h4>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
-          {(roadmapStep.recommendedCompetencies || []).map((comp) => (
-            <span key={comp} className="skill-tag">
-              {comp}
-            </span>
-          ))}
-        </div>
-        <p style={{ fontSize: '0.875rem', color: '#6b7280', marginTop: '1rem' }}>
-          이 역량들을 '프로필 수정'에 추가하고 관련 활동들을 찾아보세요!
-        </p>
-      </div>
-    </div>
-  );
-};
-
-// --- 대시보드 ---
-const Dashboard = ({ userProfile, uid }: { userProfile: UserProfile; uid: string }) => {
+// ---------------------- 대시보드 ----------------------
+const Dashboard = ({
+  userProfile,
+  uid,
+  onToggleLike,
+}: {
+  userProfile: UserProfile;
+  uid: string;
+  onToggleLike: (activityId: string) => void;
+}) => {
   const [activities, setActivities] = useState<ActivityWithMatchRate[]>([]);
   const [view, setView] = useState<'dashboard' | 'profile'>('dashboard');
   const [activeCategory, setActiveCategory] = useState<'전체' | ActivityCategory>('전체');
@@ -709,9 +870,8 @@ const Dashboard = ({ userProfile, uid }: { userProfile: UserProfile; uid: string
       }
     };
     fetchActivities();
-  }, [userProfile, activeCategory]);
+  }, [userProfile.major, activeCategory]);
 
-  // 검색 + 정렬
   const displayedActivities = useMemo(() => {
     const lowerSearchTerm = searchTerm.toLowerCase().trim();
 
@@ -733,7 +893,7 @@ const Dashboard = ({ userProfile, uid }: { userProfile: UserProfile; uid: string
   }, [activities, sortOrder, searchTerm]);
 
   if (view === 'profile') {
-    return <MyPage userProfile={userProfile} uid={uid} setView={setView} />;
+    return <MyPage userProfile={userProfile} uid={uid} setView={setView} onToggleLike={onToggleLike} />;
   }
 
   const categories: ('전체' | ActivityCategory)[] = ['전체', '채용', '인턴', '공모전', '자격증'];
@@ -748,7 +908,6 @@ const Dashboard = ({ userProfile, uid }: { userProfile: UserProfile; uid: string
         </button>
       </div>
 
-      {/* 검색 + 카테고리 + 정렬 */}
       <div
         style={{
           marginBottom: '2rem',
@@ -759,7 +918,6 @@ const Dashboard = ({ userProfile, uid }: { userProfile: UserProfile; uid: string
           alignItems: 'center',
         }}
       >
-        {/* 카테고리 버튼 */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
           {categories.map((category) => (
             <button
@@ -773,7 +931,6 @@ const Dashboard = ({ userProfile, uid }: { userProfile: UserProfile; uid: string
           ))}
         </div>
 
-        {/* 검색 + 정렬 */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', marginLeft: 'auto', alignItems: 'center' }}>
           <div>
             <input
@@ -808,7 +965,13 @@ const Dashboard = ({ userProfile, uid }: { userProfile: UserProfile; uid: string
       <div className="activity-grid">
         {displayedActivities.length > 0 ? (
           displayedActivities.map((activity) => (
-            <ActivityCard key={activity.id} activity={activity} userCompetencies={userProfile.competencies} />
+            <ActivityCard
+              key={activity.id}
+              activity={activity}
+              userCompetencies={userProfile.competencies}
+              isLiked={(userProfile.likedActivityIds || []).includes(activity.id)}
+              onToggleLike={onToggleLike}
+            />
           ))
         ) : (
           <div className="info-box" style={{ gridColumn: '1 / -1', textAlign: 'center' }}>
@@ -824,7 +987,7 @@ const Dashboard = ({ userProfile, uid }: { userProfile: UserProfile; uid: string
   );
 };
 
-// --- 메인 App 컴포넌트 ---
+// ---------------------- 메인 App ----------------------
 function App() {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -855,12 +1018,9 @@ function App() {
         const userDoc = await getDoc(userDocRef);
         if (userDoc.exists()) {
           const profileData = userDoc.data() as UserProfile;
-          if (!profileData.competencies) {
-            profileData.competencies = [];
-          }
-          if (!profileData.completedActivities) {
-            profileData.completedActivities = [];
-          }
+          if (!profileData.competencies) profileData.competencies = [];
+          if (!profileData.completedActivities) profileData.completedActivities = [];
+          if (!profileData.likedActivityIds) profileData.likedActivityIds = [];
           setUserProfile(profileData);
         } else {
           setUserProfile(null);
@@ -880,6 +1040,33 @@ function App() {
     }
   }, [userProfile]);
 
+  // 관심 활동 토글
+  const handleToggleLike = async (activityId: string) => {
+    if (!user || !userProfile) return;
+
+    const currentLikes = userProfile.likedActivityIds || [];
+    let newLikes: string[];
+
+    if (currentLikes.includes(activityId)) {
+      newLikes = currentLikes.filter((id) => id !== activityId);
+    } else {
+      newLikes = [...currentLikes, activityId];
+    }
+
+    // optimistic update
+    const updatedProfile = { ...userProfile, likedActivityIds: newLikes };
+    setUserProfile(updatedProfile);
+
+    try {
+      const userDocRef = doc(db, 'users', user.uid);
+      await setDoc(userDocRef, { likedActivityIds: newLikes }, { merge: true });
+    } catch (error) {
+      console.error('Error updating likes: ', error);
+      // 실패 시 롤백
+      setUserProfile(userProfile);
+    }
+  };
+
   const handleSignUp = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const { name, email, password } = event.currentTarget.elements as any;
@@ -892,6 +1079,7 @@ function App() {
         email: email.value,
         competencies: [],
         completedActivities: [],
+        likedActivityIds: [], // 새로 만들 때 빈 배열
       });
     } catch (err: any) {
       setError(err.message);
@@ -933,7 +1121,7 @@ function App() {
         return <OnboardingForm user={user} onComplete={handleOnboardingComplete} />;
       }
       if (userProfile) {
-        return <Dashboard userProfile={userProfile} uid={user.uid} />;
+        return <Dashboard userProfile={userProfile} uid={user.uid} onToggleLike={handleToggleLike} />;
       }
       return (
         <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center' }}>
