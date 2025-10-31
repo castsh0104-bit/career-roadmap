@@ -18,8 +18,7 @@ import {
   where,
   type Timestamp,
   documentId,
-  // 만약 여기서 documentId()가 안 되면 위 줄 말고 아래 걸 쓰세요:
-  // FieldPath,
+  // FieldPath, // documentId() 안 되면 이거 쓰기
 } from 'firebase/firestore';
 
 // ---------------------- 타입 정의 ----------------------
@@ -55,6 +54,7 @@ interface Activity {
   createdAt: Timestamp;
   targetMajors: string[];
   category: ActivityCategory;
+  applyUrl?: string; // ← [중요] optional 로 변경
 }
 
 interface ActivityWithMatchRate extends Activity {
@@ -69,7 +69,7 @@ interface RoadmapStep {
   recommendedCompetencies: string[];
 }
 
-// ---------------------- 공통 유틸/아이콘 ----------------------
+// ---------------------- 공통 유틸 / 아이콘 ----------------------
 const BuildingIcon = () => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -105,7 +105,6 @@ const LocationIcon = () => (
   </svg>
 );
 
-// 하트 아이콘
 const LikeIcon = ({ isLiked }: { isLiked: boolean }) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -144,9 +143,8 @@ const calculateDday = (deadline: Timestamp) => {
   );
 };
 
-//
 // =====================================================
-// [수정 1] ActivityCard를 위로 올려서, 아래 MyPage/Dashboard에서 바로 사용 가능하게
+// 활동 카드 (ActivityCard)
 // =====================================================
 function ActivityCard({
   activity,
@@ -169,9 +167,12 @@ function ActivityCard({
 
   return (
     <div className="activity-card" style={{ position: 'relative' }}>
-      {/* 관심 토글 버튼 */}
+      {/* 좋아요 토글 */}
       <button
-        onClick={() => onToggleLike(activity.id)}
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleLike(activity.id);
+        }}
         style={{
           position: 'absolute',
           top: '1.25rem',
@@ -206,14 +207,17 @@ function ActivityCard({
           <p className="activity-date">~{formattedDeadline}</p>
         </div>
       </div>
+
       <h3 className="activity-title">{activity.title}</h3>
       <p className="activity-content">{activity.content}</p>
+
       <div
         style={{ display: 'flex', alignItems: 'center', fontSize: '0.875rem', color: '#6b7280', marginBottom: '1rem' }}
       >
         <LocationIcon />
         <span>{activity.location || '근무지 정보 없음'}</span>
       </div>
+
       <div style={{ marginTop: 'auto' }}>
         <h4 style={{ fontWeight: '600', marginBottom: '0.5rem' }}>요구 역량:</h4>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
@@ -229,6 +233,7 @@ function ActivityCard({
           )) || '요구 역량 정보 없음'}
         </div>
       </div>
+
       <div style={{ marginTop: '1.5rem' }}>
         <p style={{ fontWeight: 'bold', fontSize: '1.125rem' }}>나의 역량 매칭률: {matchRate}%</p>
         <div className="match-rate-bar-bg" style={{ marginTop: '0.5rem' }}>
@@ -241,6 +246,21 @@ function ActivityCard({
           ></div>
         </div>
       </div>
+
+      {/* 지원하기 버튼 */}
+      {activity.applyUrl && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
+          <a
+            href={activity.applyUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="button button-apply"
+            onClick={(e) => e.stopPropagation()}
+          >
+            지원하기
+          </a>
+        </div>
+      )}
     </div>
   );
 }
@@ -400,7 +420,7 @@ const RoadmapGuide = ({ userProfile }: { userProfile: UserProfile }) => {
   useEffect(() => {
     const fetchRoadmap = async () => {
       if (userProfile.major && userProfile.grade) {
-        const roadmapId = userProfile.major.replace('/', ','); // firestore 문서 id에 / 못씀
+        const roadmapId = userProfile.major.replace('/', ',');
         const roadmapDocRef = doc(db, 'roadmaps', roadmapId);
         const roadmapDoc = await getDoc(roadmapDocRef);
         if (roadmapDoc.exists()) {
@@ -490,7 +510,6 @@ const MyPage = ({
   const [likedActivities, setLikedActivities] = useState<ActivityWithMatchRate[]>([]);
   const [isLikeLoading, setIsLikeLoading] = useState(false);
 
-  // 대시보드랑 똑같은 매칭률 계산
   const getMatchRate = (activity: Activity, userCompetencies: string[]): number => {
     if (
       !userCompetencies ||
@@ -506,9 +525,6 @@ const MyPage = ({
     return Math.round((matchCount / lowerRequiredCompetencies.length) * 100);
   };
 
-  // =====================================================
-  // [수정 2] 관심 활동 탭: likedActivityIds를 10개씩 나눠서 불러오기
-  // =====================================================
   useEffect(() => {
     if (activeTab !== 'likes') return;
 
@@ -529,12 +545,9 @@ const MyPage = ({
 
         for (let i = 0; i < likedIds.length; i += MAX_IN) {
           const chunk = likedIds.slice(i, i + MAX_IN);
-
           const q = query(activitiesRef, where(documentId(), 'in', chunk));
-          // documentId()가 버전에서 안 되면:
-          // const q = query(activitiesRef, where(FieldPath.documentId(), 'in', chunk));
-
           const snap = await getDocs(q);
+
           snap.forEach((docSnap) => {
             const activity = { id: docSnap.id, ...docSnap.data() } as Activity;
             allActivities.push({
@@ -908,6 +921,7 @@ const Dashboard = ({
         </button>
       </div>
 
+      {/* 검색 + 카테고리 + 정렬 */}
       <div
         style={{
           marginBottom: '2rem',
@@ -918,6 +932,7 @@ const Dashboard = ({
           alignItems: 'center',
         }}
       >
+        {/* 카테고리 버튼 */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
           {categories.map((category) => (
             <button
@@ -931,6 +946,7 @@ const Dashboard = ({
           ))}
         </div>
 
+        {/* 검색 + 정렬 */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', marginLeft: 'auto', alignItems: 'center' }}>
           <div>
             <input
@@ -1079,7 +1095,7 @@ function App() {
         email: email.value,
         competencies: [],
         completedActivities: [],
-        likedActivityIds: [], // 새로 만들 때 빈 배열
+        likedActivityIds: [],
       });
     } catch (err: any) {
       setError(err.message);
