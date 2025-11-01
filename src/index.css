@@ -1,5 +1,6 @@
 /* IT 커리어 로드맵 - 전역 스타일 시트 */
 
+/* 기본 */
 body {
   margin: 0;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans',
@@ -16,7 +17,7 @@ body {
 
 /* 헤더 */
 .header {
-  background-color: white;
+  background-color: #ffffff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   padding: 1rem 2rem;
 }
@@ -40,18 +41,10 @@ body {
   padding: 0.5rem 1rem;
   border: none;
   border-radius: 0.375rem;
-  color: white;
+  color: #ffffff;
   cursor: pointer;
   font-weight: 600;
   transition: background-color 0.2s;
-}
-
-.button-logout {
-  background-color: #ef4444;
-}
-
-.button-logout:hover {
-  background-color: #dc2626;
 }
 
 .button-primary {
@@ -85,12 +78,31 @@ body {
   text-decoration: underline;
 }
 
-/* [신규] 지원하기 버튼 */
+/* 로그아웃 버튼 */
+.button-logout {
+  background-color: #ef4444;
+}
+
+.button-logout:hover {
+  background-color: #dc2626;
+}
+
+/* 삭제 / 위험 버튼 */
+.button-danger {
+  background-color: #ef4444;
+  color: #ffffff;
+}
+
+.button-danger:hover {
+  background-color: #dc2626;
+}
+
+/* 지원하기 버튼 (카드 안) */
 .button-apply {
   background-color: #2563eb;
   padding: 0.5rem 1rem;
   font-weight: 600;
-  color: white;
+  color: #ffffff;
   border-radius: 0.375rem;
   width: auto;
   text-decoration: none;
@@ -100,11 +112,11 @@ body {
   background-color: #1d4ed8;
 }
 
-/* 인증 폼 */
+/* 인증 폼 공통 */
 .auth-form-container {
   max-width: 400px;
   margin: 4rem auto;
-  background-color: white;
+  background-color: #ffffff;
   padding: 2.5rem;
   border-radius: 0.5rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
@@ -134,6 +146,12 @@ body {
   border: 1px solid #d1d5db;
   border-radius: 0.375rem;
   box-sizing: border-box;
+  background-color: #ffffff;
+}
+
+textarea.input {
+  min-height: 80px;
+  resize: vertical;
 }
 
 .error-message {
@@ -142,7 +160,7 @@ body {
   margin-bottom: 1rem;
 }
 
-/* 대시보드 */
+/* 대시보드 헤더 */
 .dashboard-header {
   display: flex;
   justify-content: space-between;
@@ -155,6 +173,7 @@ body {
   font-weight: bold;
 }
 
+/* 활동 카드 그리드 */
 .activity-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -163,7 +182,7 @@ body {
 
 /* 활동 카드 */
 .activity-card {
-  background-color: white;
+  background-color: #ffffff;
   border: 1px solid #e5e7eb;
   border-radius: 0.5rem;
   padding: 1.5rem;
@@ -171,6 +190,7 @@ body {
   transition: box-shadow 0.2s, transform 0.2s;
   display: flex;
   flex-direction: column;
+  min-height: 260px;
 }
 
 .activity-card:hover {
@@ -183,6 +203,22 @@ body {
   font-weight: bold;
 }
 
+.activity-content {
+  margin-top: 0.5rem;
+  margin-bottom: 1rem;
+  color: #4b5563;
+  line-height: 1.5;
+  white-space: pre-line;
+}
+
+/* 카드 안 버튼 묶음 (Admin 목록용) */
+.activity-card .action-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+/* 역량 태그 */
 .skill-tag {
   display: inline-block;
   padding: 0.25rem 0.75rem;
@@ -198,6 +234,7 @@ body {
   color: #1e40af;
 }
 
+/* 매칭률 바 */
 .match-rate-bar-bg {
   width: 100%;
   background-color: #e5e7eb;
@@ -212,7 +249,7 @@ body {
   transition: width 0.5s ease-in-out;
 }
 
-/* 마이페이지 & 로드맵 */
+/* 마이페이지 & 로드맵 공통 */
 .mypage-container {
   max-width: 800px;
   margin: 0 auto;
@@ -252,7 +289,7 @@ body {
 }
 
 .info-box {
-  background: white;
+  background: #ffffff;
   padding: 2rem;
   border-radius: 0.5rem;
   border: 1px solid #e5e7eb;
@@ -271,6 +308,7 @@ body {
   box-shadow: none !important;
   padding: 2rem;
   border: 1px solid #e5e7eb;
+  background: #ffffff;
 }
 
 .form-box h3 {
@@ -281,7 +319,7 @@ body {
 }
 
 .activity-list-item {
-  background: white;
+  background: #ffffff;
   padding: 1.5rem;
   border-radius: 0.5rem;
   border: 1px solid #e5e7eb;
@@ -321,11 +359,17 @@ body {
   right: 1rem;
   background: none;
   border: none;
-  cursor: pointer; /* ← 여기 깨졌던 부분 수정 */
+  cursor: pointer;
   color: #9ca3af;
   font-size: 1.25rem;
   padding: 0.5rem;
   line-height: 1;
+}
+
+/* 관리자 페이지 컨테이너 */
+.admin-container {
+  max-width: 900px;
+  margin: 0 auto;
 }
 
 /* 모바일 반응형 */
@@ -343,7 +387,7 @@ body {
   .mypage-title {
     font-size: 1.5rem;
   }
-  /* 인라인 스타일로 쓰인 flex row들을 모바일에서 column으로 */
+  /* 인라인 flex row들을 모바일에서 column으로 강제 */
   div[style*='justify-content: space-between'] {
     flex-direction: column;
     align-items: stretch;

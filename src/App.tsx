@@ -1,1020 +1,35 @@
-import React, { useState, useEffect, useMemo } from 'react';
+// src/App.tsx
+import React, { useEffect, useState } from 'react';
 import './index.css';
 import { auth, db } from './firebase';
 import {
   createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
   onAuthStateChanged,
+  signInWithEmailAndPassword,
   signOut,
   type User,
 } from 'firebase/auth';
-import {
-  doc,
-  setDoc,
-  getDoc,
-  collection,
-  getDocs,
-  query,
-  where,
-  type Timestamp,
-  documentId,
-  // FieldPath, // documentId() 안 되면 이거 쓰기
-} from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import Header from './components/Header';
+import AuthPage from './pages/AuthPage';
+import OnboardingPage from './pages/OnboardingPage';
+import DashboardPage from './pages/DashboardPage';
+import MyPage from './pages/MyPage';
+import AdminPage from './pages/AdminPage'; // ← 너가 만든 관리자 페이지
+import type { UserProfile } from './types';
 
-// ---------------------- 타입 정의 ----------------------
-interface MyActivity {
-  id: string;
-  type: '인턴' | '공모전' | '자격증' | '기타';
-  title: string;
-  date: string;
-  description: string;
-}
-
-interface UserProfile {
-  name: string;
-  email: string;
-  competencies: string[];
-  grade?: number;
-  major?: string;
-  completedActivities?: MyActivity[];
-  likedActivityIds?: string[];
-}
-
-type ActivityCategory = '채용' | '인턴' | '공모전' | '자격증';
-
-interface Activity {
-  id: string;
-  title: string;
-  content: string;
-  requiredCompetencies: string[];
-  companyName: string;
-  employmentType: string;
-  location: string;
-  applicationDeadline: Timestamp;
-  createdAt: Timestamp;
-  targetMajors: string[];
-  category: ActivityCategory;
-  applyUrl?: string; // ← [중요] optional 로 변경
-}
-
-interface ActivityWithMatchRate extends Activity {
-  matchRate: number;
-}
-
-interface RoadmapStep {
-  grade: number;
-  title: string;
-  description: string;
-  recommendations: string[];
-  recommendedCompetencies: string[];
-}
-
-// ---------------------- 공통 유틸 / 아이콘 ----------------------
-const BuildingIcon = () => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    style={{ height: '1rem', width: '1rem', marginRight: '0.375rem', color: '#6b7280' }}
-    fill="none"
-    viewBox="0 0 24 24"
-    stroke="currentColor"
-    strokeWidth={2}
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-    />
-  </svg>
-);
-
-const LocationIcon = () => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    style={{ height: '1rem', width: '1rem', marginRight: '0.375rem', color: '#6b7280' }}
-    fill="none"
-    viewBox="0 0 24 24"
-    stroke="currentColor"
-    strokeWidth={2}
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-    />
-    <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-  </svg>
-);
-
-const LikeIcon = ({ isLiked }: { isLiked: boolean }) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    style={{ height: '1.5rem', width: '1.5rem' }}
-    viewBox="0 0 20 20"
-    fill={isLiked ? '#ef4444' : 'currentColor'}
-    stroke={isLiked ? '#ef4444' : 'currentColor'}
-    strokeWidth={isLiked ? 0 : 1.5}
-  >
-    <path
-      fillRule="evenodd"
-      d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z"
-      clipRule="evenodd"
-    />
-  </svg>
-);
-
-const convertFirestoreTimestampToDate = (timestamp: Timestamp): Date => {
-  if (!timestamp || typeof (timestamp as any).toDate !== 'function') return new Date();
-  return timestamp.toDate();
-};
-
-const calculateDday = (deadline: Timestamp) => {
-  const today = new Date();
-  const deadlineDate = convertFirestoreTimestampToDate(deadline);
-  today.setHours(0, 0, 0, 0);
-  deadlineDate.setHours(0, 0, 0, 0);
-  const diffTime = deadlineDate.getTime() - today.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  if (diffDays < 0) return <span style={{ color: '#ef4444', fontWeight: 'bold' }}>마감</span>;
-  if (diffDays === 0) return <span style={{ color: '#f59e0b', fontWeight: 'bold' }}>D-Day</span>;
-  return (
-    <span style={{ color: '#22c55e', fontWeight: 'bold' }}>
-      D-{diffDays}
-    </span>
-  );
-};
-
-// =====================================================
-// 활동 카드 (ActivityCard)
-// =====================================================
-function ActivityCard({
-  activity,
-  userCompetencies,
-  isLiked,
-  onToggleLike,
-}: {
-  activity: ActivityWithMatchRate;
-  userCompetencies: string[];
-  isLiked: boolean;
-  onToggleLike: (activityId: string) => void;
-}) {
-  const { matchRate } = activity;
-  const deadlineDate = convertFirestoreTimestampToDate(activity.applicationDeadline);
-  const formattedDeadline = `${deadlineDate.getFullYear()}.${String(deadlineDate.getMonth() + 1).padStart(
-    2,
-    '0',
-  )}.${String(deadlineDate.getDate()).padStart(2, '0')}`;
-  const lowerUserCompetencies = (userCompetencies || []).map((s) => s.toLowerCase());
-
-  return (
-    <div className="activity-card" style={{ position: 'relative' }}>
-      {/* 좋아요 토글 */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onToggleLike(activity.id);
-        }}
-        style={{
-          position: 'absolute',
-          top: '1.25rem',
-          right: '1.25rem',
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          color: '#9ca3af',
-        }}
-        aria-label="관심 활동으로 추가"
-      >
-        <LikeIcon isLiked={isLiked} />
-      </button>
-
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          marginBottom: '0.75rem',
-        }}
-      >
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', fontSize: '1rem', fontWeight: 'bold' }}>
-            <BuildingIcon />
-            <span>{activity.companyName || '회사정보 없음'}</span>
-          </div>
-          <span className="activity-type-badge">{activity.employmentType || '정보 없음'}</span>
-        </div>
-        <div style={{ textAlign: 'right', paddingRight: '2rem' }}>
-          <div style={{ fontWeight: '800', fontSize: '1.125rem' }}>{calculateDday(activity.applicationDeadline)}</div>
-          <p className="activity-date">~{formattedDeadline}</p>
-        </div>
-      </div>
-
-      <h3 className="activity-title">{activity.title}</h3>
-      <p className="activity-content">{activity.content}</p>
-
-      <div
-        style={{ display: 'flex', alignItems: 'center', fontSize: '0.875rem', color: '#6b7280', marginBottom: '1rem' }}
-      >
-        <LocationIcon />
-        <span>{activity.location || '근무지 정보 없음'}</span>
-      </div>
-
-      <div style={{ marginTop: 'auto' }}>
-        <h4 style={{ fontWeight: '600', marginBottom: '0.5rem' }}>요구 역량:</h4>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-          {(activity.requiredCompetencies || []).map((competency) => (
-            <span
-              key={competency}
-              className={
-                lowerUserCompetencies.includes(competency.toLowerCase()) ? 'skill-tag skill-tag-match' : 'skill-tag'
-              }
-            >
-              {competency}
-            </span>
-          )) || '요구 역량 정보 없음'}
-        </div>
-      </div>
-
-      <div style={{ marginTop: '1.5rem' }}>
-        <p style={{ fontWeight: 'bold', fontSize: '1.125rem' }}>나의 역량 매칭률: {matchRate}%</p>
-        <div className="match-rate-bar-bg" style={{ marginTop: '0.5rem' }}>
-          <div
-            className="match-rate-bar"
-            style={{
-              width: `${matchRate}%`,
-              backgroundColor: matchRate > 70 ? '#22c55e' : matchRate > 40 ? '#f59e0b' : '#ef4444',
-            }}
-          ></div>
-        </div>
-      </div>
-
-      {/* 지원하기 버튼 */}
-      {activity.applyUrl && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
-          <a
-            href={activity.applyUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="button button-apply"
-            onClick={(e) => e.stopPropagation()}
-          >
-            지원하기
-          </a>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ---------------------- 헤더 ----------------------
-const Header = ({ user, onSignOut }: { user: User | null; onSignOut: () => void }) => (
-  <header className="header">
-    <nav className="nav">
-      <h1 style={{ cursor: 'pointer' }} onClick={() => window.location.reload()}>
-        공대생 커리어 로드맵
-      </h1>
-      {user && (
-        <button onClick={onSignOut} className="button button-logout">
-          로그아웃
-        </button>
-      )}
-    </nav>
-  </header>
-);
-
-// ---------------------- 인증 폼 ----------------------
-const AuthForm = ({
-  view,
-  setView,
-  onSignUp,
-  onSignIn,
-  error,
-}: {
-  view: 'signIn' | 'signUp';
-  setView: (view: 'signIn' | 'signUp') => void;
-  onSignUp: (event: React.FormEvent<HTMLFormElement>) => void;
-  onSignIn: (event: React.FormEvent<HTMLFormElement>) => void;
-  error: string;
-}) => (
-  <div className="auth-form-container">
-    <h2>{view === 'signIn' ? '로그인' : '회원가입'}</h2>
-    <form onSubmit={view === 'signIn' ? onSignIn : onSignUp}>
-      {view === 'signUp' && (
-        <div className="input-group">
-          <label htmlFor="name">이름</label>
-          <input className="input" type="text" id="name" name="name" required />
-        </div>
-      )}
-      <div className="input-group">
-        <label htmlFor="email">이메일</label>
-        <input className="input" type="email" id="email" name="email" required />
-      </div>
-      <div className="input-group">
-        <label htmlFor="password">비밀번호</label>
-        <input className="input" type="password" id="password" name="password" required />
-      </div>
-      {error && <p className="error-message">{error}</p>}
-      <button type="submit" className="button button-primary">
-        {view === 'signIn' ? '로그인' : '회원가입'}
-      </button>
-    </form>
-    <p style={{ textAlign: 'center', marginTop: '1rem', fontSize: '0.875rem' }}>
-      {view === 'signIn' ? '계정이 없으신가요?' : '이미 계정이 있으신가요?'}
-      <button
-        onClick={() => setView(view === 'signIn' ? 'signUp' : 'signIn')}
-        type="button"
-        className="button button-link"
-      >
-        {view === 'signIn' ? '회원가입' : '로그인'}
-      </button>
-    </p>
-  </div>
-);
-
-// ---------------------- 온보딩 폼 ----------------------
-const OnboardingForm = ({ user, onComplete }: { user: User; onComplete: (updated: UserProfile) => void }) => {
-  const [grade, setGrade] = useState('');
-  const [major, setMajor] = useState('');
-
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!grade || !major) {
-      alert('모든 항목을 선택해주세요.');
-      return;
-    }
-    const userDocRef = doc(db, 'users', user.uid);
-    const userDoc = await getDoc(userDocRef);
-    if (userDoc.exists()) {
-      const currentProfile = userDoc.data() as UserProfile;
-      const updatedProfile: UserProfile = {
-        ...currentProfile,
-        grade: parseInt(grade),
-        major: major,
-      };
-      try {
-        await setDoc(userDocRef, updatedProfile, { merge: true });
-        alert('정보가 저장되었습니다!');
-        onComplete(updatedProfile);
-      } catch (error) {
-        console.error('Onboarding error: ', error);
-        alert('정보 저장에 실패했습니다.');
-      }
-    }
-  };
-
-  return (
-    <div className="auth-form-container" style={{ textAlign: 'center' }}>
-      <h2>환영합니다!</h2>
-      <p style={{ marginBottom: '2rem', color: '#4b5563' }}>
-        정확한 로드맵 추천을 위해 추가 정보를 입력해주세요.
-      </p>
-      <form onSubmit={handleSubmit}>
-        <div className="input-group" style={{ textAlign: 'left' }}>
-          <label htmlFor="grade">학년</label>
-          <select
-            id="grade"
-            value={grade}
-            onChange={(e) => setGrade(e.target.value)}
-            className="input"
-            required
-          >
-            <option value="" disabled>
-              학년을 선택하세요
-            </option>
-            <option value="1">1학년</option>
-            <option value="2">2학년</option>
-            <option value="3">3학년</option>
-            <option value="4">4학년</option>
-            <option value="5">졸업생</option>
-          </select>
-        </div>
-        <div className="input-group" style={{ textAlign: 'left' }}>
-          <label htmlFor="major">전공 계열</label>
-          <select
-            id="major"
-            value={major}
-            onChange={(e) => setMajor(e.target.value)}
-            className="input"
-            required
-          >
-            <option value="" disabled>
-              전공 계열을 선택하세요
-            </option>
-            <option value="컴퓨터공학/소프트웨어">컴퓨터공학/소프트웨어</option>
-            <option value="기계공학">기계공학</option>
-            <option value="전자전기공학">전자전기공학</option>
-            <option value="화학공학">화학공학</option>
-          </select>
-        </div>
-        <button type="submit" className="button button-primary" style={{ marginTop: '1rem' }}>
-          로드맵 추천 시작하기
-        </button>
-      </form>
-    </div>
-  );
-};
-
-// ---------------------- 로드맵 가이드 ----------------------
-const RoadmapGuide = ({ userProfile }: { userProfile: UserProfile }) => {
-  const [roadmapStep, setRoadmapStep] = useState<RoadmapStep | null>(null);
-
-  useEffect(() => {
-    const fetchRoadmap = async () => {
-      if (userProfile.major && userProfile.grade) {
-        const roadmapId = userProfile.major.replace('/', ',');
-        const roadmapDocRef = doc(db, 'roadmaps', roadmapId);
-        const roadmapDoc = await getDoc(roadmapDocRef);
-        if (roadmapDoc.exists()) {
-          const roadmapData = roadmapDoc.data() as { steps: RoadmapStep[] };
-          const currentStep = (roadmapData.steps || []).find((step) => step.grade === userProfile.grade);
-          setRoadmapStep(currentStep || null);
-        } else {
-          console.log(`No roadmap found for: ${roadmapId}`);
-          setRoadmapStep(null);
-        }
-      }
-    };
-    fetchRoadmap();
-  }, [userProfile]);
-
-  if (!roadmapStep) {
-    return (
-      <div className="info-box" style={{ textAlign: 'center' }}>
-        <p>
-          아직 {userProfile.major} 전공의 {userProfile.grade}학년 로드맵이 준비되지 않았습니다.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="info-box" style={{ marginBottom: '2rem' }}>
-      <h2
-        style={{
-          fontSize: '1.5rem',
-          fontWeight: 'bold',
-          borderBottom: '2px solid #2563eb',
-          paddingBottom: '1rem',
-          marginBottom: '1rem',
-          marginTop: 0,
-        }}
-      >
-        {userProfile.name}님을 위한 {roadmapStep.grade}학년 맞춤 로드맵
-      </h2>
-      <h3 className="activity-title">{roadmapStep.title}</h3>
-      <p className="activity-content">{roadmapStep.description}</p>
-      <h4 style={{ fontWeight: 'bold', marginTop: '1.5rem' }}>추천 활동:</h4>
-      <ul style={{ paddingLeft: '20px', listStyle: 'disc' }}>
-        {(roadmapStep.recommendations || []).map((rec, index) => (
-          <li key={index} style={{ marginBottom: '0.5rem' }}>
-            {rec}
-          </li>
-        ))}
-      </ul>
-      <div style={{ marginTop: '1.5rem' }}>
-        <h4 style={{ fontWeight: 'bold' }}>추천 역량:</h4>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
-          {(roadmapStep.recommendedCompetencies || []).map((comp) => (
-            <span key={comp} className="skill-tag">
-              {comp}
-            </span>
-          ))}
-        </div>
-        <p style={{ fontSize: '0.875rem', color: '#6b7280', marginTop: '1rem' }}>
-          이 역량들을 '프로필 수정'에 추가하고 관련 활동들을 찾아보세요!
-        </p>
-      </div>
-    </div>
-  );
-};
-
-// ---------------------- 마이페이지 ----------------------
-const MyPage = ({
-  userProfile,
-  uid,
-  setView,
-  onToggleLike,
-}: {
-  userProfile: UserProfile;
-  uid: string;
-  setView: (view: 'dashboard') => void;
-  onToggleLike: (activityId: string) => void;
-}) => {
-  const [activeTab, setActiveTab] = useState<'info' | 'history' | 'likes'>('info');
-  const [competencies, setCompetencies] = useState((userProfile.competencies || []).join(', '));
-  const [myActivities, setMyActivities] = useState<MyActivity[]>(userProfile.completedActivities || []);
-  const [message, setMessage] = useState('');
-  const [newActivityType, setNewActivityType] = useState<'인턴' | '공모전' | '자격증' | '기타'>('인턴');
-  const [newActivityTitle, setNewActivityTitle] = useState('');
-  const [newActivityDate, setNewActivityDate] = useState('');
-  const [newActivityDesc, setNewActivityDesc] = useState('');
-  const [likedActivities, setLikedActivities] = useState<ActivityWithMatchRate[]>([]);
-  const [isLikeLoading, setIsLikeLoading] = useState(false);
-
-  const getMatchRate = (activity: Activity, userCompetencies: string[]): number => {
-    if (
-      !userCompetencies ||
-      userCompetencies.length === 0 ||
-      !activity.requiredCompetencies ||
-      activity.requiredCompetencies.length === 0
-    ) {
-      return 0;
-    }
-    const lowerUserCompetencies = userCompetencies.map((s) => s.toLowerCase());
-    const lowerRequiredCompetencies = activity.requiredCompetencies.map((s) => s.toLowerCase());
-    const matchCount = lowerRequiredCompetencies.filter((c) => lowerUserCompetencies.includes(c)).length;
-    return Math.round((matchCount / lowerRequiredCompetencies.length) * 100);
-  };
-
-  useEffect(() => {
-    if (activeTab !== 'likes') return;
-
-    const fetchLikedActivities = async () => {
-      setIsLikeLoading(true);
-      const likedIds = userProfile.likedActivityIds || [];
-
-      if (likedIds.length === 0) {
-        setLikedActivities([]);
-        setIsLikeLoading(false);
-        return;
-      }
-
-      try {
-        const activitiesRef = collection(db, 'activities');
-        const MAX_IN = 10;
-        const allActivities: ActivityWithMatchRate[] = [];
-
-        for (let i = 0; i < likedIds.length; i += MAX_IN) {
-          const chunk = likedIds.slice(i, i + MAX_IN);
-          const q = query(activitiesRef, where(documentId(), 'in', chunk));
-          const snap = await getDocs(q);
-
-          snap.forEach((docSnap) => {
-            const activity = { id: docSnap.id, ...docSnap.data() } as Activity;
-            allActivities.push({
-              ...activity,
-              matchRate: getMatchRate(activity, userProfile.competencies || []),
-            });
-          });
-        }
-
-        setLikedActivities(allActivities);
-      } catch (error) {
-        console.error('Error fetching liked activities: ', error);
-        setLikedActivities([]);
-      } finally {
-        setIsLikeLoading(false);
-      }
-    };
-
-    fetchLikedActivities();
-  }, [activeTab, userProfile]);
-
-  const getPlaceholderText = () => {
-    switch (userProfile.major) {
-      case '컴퓨터공학/소프트웨어':
-        return '예: react, typescript, 정보처리기사';
-      case '기계공학':
-        return '예: 일반기계기사, catia, autocad';
-      case '전자전기공학':
-        return '예: 회로이론, 전기기사, pspice';
-      default:
-        return '보유한 역량을 쉼표로 구분하여 입력하세요';
-    }
-  };
-
-  const handleCompetencyUpdate = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const competenciesArray = competencies
-      .split(',')
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean);
-    const userDocRef = doc(db, 'users', uid);
-    try {
-      await setDoc(userDocRef, { competencies: competenciesArray }, { merge: true });
-      setMessage('역량 정보가 성공적으로 업데이트되었습니다!');
-      setTimeout(() => setMessage(''), 2000);
-    } catch (error) {
-      console.error('Competency update error: ', error);
-      setMessage('업데이트에 실패했습니다.');
-    }
-  };
-
-  const handleAddActivity = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!newActivityTitle.trim() || !newActivityDate.trim()) {
-      alert('활동 이름과 기간은 필수 항목입니다.');
-      return;
-    }
-    const newActivity: MyActivity = {
-      id: `act_${Date.now()}`,
-      type: newActivityType,
-      title: newActivityTitle.trim(),
-      date: newActivityDate.trim(),
-      description: newActivityDesc.trim(),
-    };
-    const updatedActivities = [...myActivities, newActivity];
-
-    const userDocRef = doc(db, 'users', uid);
-    try {
-      await setDoc(userDocRef, { completedActivities: updatedActivities }, { merge: true });
-      setMyActivities(updatedActivities);
-      setNewActivityType('인턴');
-      setNewActivityTitle('');
-      setNewActivityDate('');
-      setNewActivityDesc('');
-    } catch (error) {
-      console.error('Error adding activity: ', error);
-      alert('활동 추가에 실패했습니다.');
-    }
-  };
-
-  const handleDeleteActivity = async (activityId: string) => {
-    if (!window.confirm('정말로 이 활동 기록을 삭제하시겠습니까?')) return;
-    const updatedActivities = myActivities.filter((act) => act.id !== activityId);
-    const userDocRef = doc(db, 'users', uid);
-    try {
-      await setDoc(userDocRef, { completedActivities: updatedActivities }, { merge: true });
-      setMyActivities(updatedActivities);
-    } catch (error) {
-      console.error('Error deleting activity: ', error);
-      alert('활동 삭제에 실패했습니다.');
-    }
-  };
-
-  return (
-    <div className="mypage-container">
-      <div className="mypage-header">
-        <h2 className="mypage-title">마이페이지</h2>
-        <button onClick={() => setView('dashboard')} type="button" className="button button-secondary">
-          대시보드로 돌아가기
-        </button>
-      </div>
-
-      <div className="tab-menu">
-        <button
-          onClick={() => setActiveTab('info')}
-          className={`tab-button ${activeTab === 'info' ? 'active' : ''}`}
-        >
-          내 정보
-        </button>
-        <button
-          onClick={() => setActiveTab('history')}
-          className={`tab-button ${activeTab === 'history' ? 'active' : ''}`}
-        >
-          나의 활동 기록
-        </button>
-        <button
-          onClick={() => setActiveTab('likes')}
-          className={`tab-button ${activeTab === 'likes' ? 'active' : ''}`}
-        >
-          관심 활동
-        </button>
-      </div>
-
-      {activeTab === 'info' && (
-        <div>
-          <div className="info-box">
-            <h3>기본 정보</h3>
-            <p>
-              <strong>이름:</strong> {userProfile.name}
-            </p>
-            <p>
-              <strong>이메일:</strong> {userProfile.email}
-            </p>
-            <p>
-              <strong>학년:</strong> {userProfile.grade}학년
-            </p>
-            <p>
-              <strong>전공 계열:</strong> {userProfile.major}
-            </p>
-          </div>
-          <form onSubmit={handleCompetencyUpdate} className="auth-form-container form-box">
-            <h3>나의 역량 수정</h3>
-            <div className="input-group">
-              <label htmlFor="competencies">나의 역량 (자격증, 사용 툴 등)</label>
-              <p style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.5rem' }}>
-                {getPlaceholderText()}
-              </p>
-              <input
-                id="competencies"
-                type="text"
-                value={competencies}
-                onChange={(e) => setCompetencies(e.target.value)}
-                className="input"
-                placeholder="쉼표로 구분하여 역량을 입력하세요"
-              />
-            </div>
-            <button type="submit" className="button button-primary" style={{ width: 'auto' }}>
-              역량 정보 저장하기
-            </button>
-            {message && (
-              <p style={{ marginTop: '1rem', fontWeight: '600', color: '#16a34a' }}>{message}</p>
-            )}
-          </form>
-        </div>
-      )}
-
-      {activeTab === 'history' && (
-        <div>
-          <form onSubmit={handleAddActivity} className="auth-form-container form-box">
-            <h3>새 활동 추가하기</h3>
-            <div className="input-group">
-              <label>활동 종류</label>
-              <select
-                value={newActivityType}
-                onChange={(e) => setNewActivityType(e.target.value as any)}
-                className="input"
-              >
-                <option value="인턴">인턴</option>
-                <option value="공모전">공모전</option>
-                <option value="자격증">자격증</option>
-                <option value="기타">기타</option>
-              </select>
-            </div>
-            <div className="input-group">
-              <label>활동 이름</label>
-              <input
-                type="text"
-                value={newActivityTitle}
-                onChange={(e) => setNewActivityTitle(e.target.value)}
-                className="input"
-                required
-              />
-            </div>
-            <div className="input-group">
-              <label>활동 기간 (예: 2024.12 ~ 2025.02)</label>
-              <input
-                type="text"
-                value={newActivityDate}
-                onChange={(e) => setNewActivityDate(e.target.value)}
-                className="input"
-                required
-              />
-            </div>
-            <div className="input-group">
-              <label>간단한 설명 (선택)</label>
-              <textarea
-                value={newActivityDesc}
-                onChange={(e) => setNewActivityDesc(e.target.value)}
-                className="input"
-                style={{ minHeight: '80px' }}
-              />
-            </div>
-            <button type="submit" className="button button-primary" style={{ width: 'auto' }}>
-              활동 기록 추가
-            </button>
-          </form>
-
-          <h3 className="mypage-title" style={{ fontSize: '1.25rem' }}>
-            완료한 활동 목록
-          </h3>
-          {myActivities.length > 0 ? (
-            myActivities.map((activity) => (
-              <div key={activity.id} className="activity-list-item">
-                <span className="activity-type-badge">{activity.type}</span>
-                <h4 className="activity-title">{activity.title}</h4>
-                <p className="activity-date">{activity.date}</p>
-                <p className="activity-desc">{activity.description}</p>
-                <button onClick={() => handleDeleteActivity(activity.id)} className="delete-button">
-                  &times;
-                </button>
-              </div>
-            ))
-          ) : (
-            <div className="info-box" style={{ textAlign: 'center' }}>
-              <p>아직 기록된 활동이 없습니다. 새 활동을 추가해보세요!</p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {activeTab === 'likes' && (
-        <div>
-          <h3 className="mypage-title" style={{ fontSize: '1.25rem' }}>
-            내가 관심있는 활동
-          </h3>
-          {isLikeLoading ? (
-            <div className="info-box" style={{ textAlign: 'center' }}>
-              <p>관심 활동을 불러오는 중입니다...</p>
-            </div>
-          ) : likedActivities.length > 0 ? (
-            <div className="activity-grid">
-              {likedActivities.map((activity) => (
-                <ActivityCard
-                  key={activity.id}
-                  activity={activity}
-                  userCompetencies={userProfile.competencies}
-                  isLiked={(userProfile.likedActivityIds || []).includes(activity.id)}
-                  onToggleLike={onToggleLike}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="info-box" style={{ textAlign: 'center' }}>
-              <p>아직 관심 활동으로 표시한 내역이 없습니다.</p>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ---------------------- 대시보드 ----------------------
-const Dashboard = ({
-  userProfile,
-  uid,
-  onToggleLike,
-}: {
-  userProfile: UserProfile;
-  uid: string;
-  onToggleLike: (activityId: string) => void;
-}) => {
-  const [activities, setActivities] = useState<ActivityWithMatchRate[]>([]);
-  const [view, setView] = useState<'dashboard' | 'profile'>('dashboard');
-  const [activeCategory, setActiveCategory] = useState<'전체' | ActivityCategory>('전체');
-  const [sortOrder, setSortOrder] = useState<'default' | 'matchRateDesc'>('default');
-  const [searchTerm, setSearchTerm] = useState('');
-
-  const getMatchRate = (activity: Activity, userCompetencies: string[]): number => {
-    if (
-      !userCompetencies ||
-      userCompetencies.length === 0 ||
-      !activity.requiredCompetencies ||
-      activity.requiredCompetencies.length === 0
-    ) {
-      return 0;
-    }
-    const lowerUserCompetencies = userCompetencies.map((s) => s.toLowerCase());
-    const lowerRequiredCompetencies = activity.requiredCompetencies.map((s) => s.toLowerCase());
-    const matchCount = lowerRequiredCompetencies.filter((c) => lowerUserCompetencies.includes(c)).length;
-    return Math.round((matchCount / lowerRequiredCompetencies.length) * 100);
-  };
-
-  useEffect(() => {
-    const fetchActivities = async () => {
-      if (!userProfile.major) return;
-
-      const activitiesCollection = collection(db, 'activities');
-      let q;
-
-      if (activeCategory === '전체') {
-        q = query(activitiesCollection, where('targetMajors', 'array-contains', userProfile.major));
-      } else {
-        q = query(
-          activitiesCollection,
-          where('targetMajors', 'array-contains', userProfile.major),
-          where('category', '==', activeCategory),
-        );
-      }
-
-      try {
-        const activitySnapshot = await getDocs(q);
-        const activityList = activitySnapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() } as Activity));
-
-        const activitiesWithMatchRate = activityList.map((activity) => ({
-          ...activity,
-          matchRate: getMatchRate(activity, userProfile.competencies || []),
-        }));
-
-        setActivities(activitiesWithMatchRate);
-      } catch (error) {
-        console.error('Error fetching filtered activities: ', error);
-      }
-    };
-    fetchActivities();
-  }, [userProfile.major, activeCategory]);
-
-  const displayedActivities = useMemo(() => {
-    const lowerSearchTerm = searchTerm.toLowerCase().trim();
-
-    const filtered = activities.filter((activity) => {
-      if (!lowerSearchTerm) return true;
-      const titleMatch = activity.title.toLowerCase().includes(lowerSearchTerm);
-      const companyMatch = activity.companyName.toLowerCase().includes(lowerSearchTerm);
-      const competencyMatch = (activity.requiredCompetencies || []).some((competency) =>
-        competency.toLowerCase().includes(lowerSearchTerm),
-      );
-      return titleMatch || companyMatch || competencyMatch;
-    });
-
-    const sorted = [...filtered];
-    if (sortOrder === 'matchRateDesc') {
-      sorted.sort((a, b) => b.matchRate - a.matchRate);
-    }
-    return sorted;
-  }, [activities, sortOrder, searchTerm]);
-
-  if (view === 'profile') {
-    return <MyPage userProfile={userProfile} uid={uid} setView={setView} onToggleLike={onToggleLike} />;
-  }
-
-  const categories: ('전체' | ActivityCategory)[] = ['전체', '채용', '인턴', '공모전', '자격증'];
-
-  return (
-    <div>
-      <RoadmapGuide userProfile={userProfile} />
-      <div className="dashboard-header">
-        <h2 className="mypage-title">맞춤 통합 활동</h2>
-        <button onClick={() => setView('profile')} className="button button-secondary">
-          마이페이지
-        </button>
-      </div>
-
-      {/* 검색 + 카테고리 + 정렬 */}
-      <div
-        style={{
-          marginBottom: '2rem',
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: '1rem',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}
-      >
-        {/* 카테고리 버튼 */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-          {categories.map((category) => (
-            <button
-              key={category}
-              onClick={() => setActiveCategory(category)}
-              className={`button ${activeCategory === category ? 'button-primary' : 'button-secondary'}`}
-              style={{ width: 'auto', color: activeCategory === category ? 'white' : '#111827' }}
-            >
-              {category}
-            </button>
-          ))}
-        </div>
-
-        {/* 검색 + 정렬 */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', marginLeft: 'auto', alignItems: 'center' }}>
-          <div>
-            <input
-              type="text"
-              placeholder="제목, 회사, 역량으로 검색..."
-              className="input"
-              style={{ width: 'auto', minWidth: '250px' }}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-
-          <div>
-            <select
-              value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value as 'default' | 'matchRateDesc')}
-              className="input"
-              style={{ width: 'auto', minWidth: '150px' }}
-            >
-              <option value="default">기본 정렬</option>
-              <option value="matchRateDesc">매칭률 높은 순</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <p style={{ fontSize: '1.125rem', marginBottom: '2rem' }}>
-        <span style={{ fontWeight: 'bold' }}>{userProfile.name}</span>님, 환영합니다! 회원님의 역량과 맞는 활동들을
-        확인해보세요.
-      </p>
-
-      <div className="activity-grid">
-        {displayedActivities.length > 0 ? (
-          displayedActivities.map((activity) => (
-            <ActivityCard
-              key={activity.id}
-              activity={activity}
-              userCompetencies={userProfile.competencies}
-              isLiked={(userProfile.likedActivityIds || []).includes(activity.id)}
-              onToggleLike={onToggleLike}
-            />
-          ))
-        ) : (
-          <div className="info-box" style={{ gridColumn: '1 / -1', textAlign: 'center' }}>
-            {searchTerm.trim() ? (
-              <p>'{searchTerm}'에 대한 검색 결과가 없습니다.</p>
-            ) : (
-              <p>현재 '{activeCategory}' 카테고리에 해당하는 맞춤 활동이 없습니다.</p>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-// ---------------------- 메인 App ----------------------
 function App() {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [authView, setAuthView] = useState<'signIn' | 'signUp'>('signIn');
-  const [error, setError] = useState<string>('');
+  const [error, setError] = useState('');
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [appView, setAppView] = useState<'dashboard' | 'mypage' | 'admin'>('dashboard');
 
-  // auth 상태 구독
+  // 로그인 상태 구독
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsub = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       if (!currentUser) {
         setUserProfile(null);
@@ -1022,89 +37,78 @@ function App() {
         setIsLoading(false);
       }
     });
-    return () => unsubscribe();
+    return () => unsub();
   }, []);
 
-  // user 바뀌면 프로필 가져오기
+  // 유저 프로필 가져오기
   useEffect(() => {
-    const fetchUserProfile = async () => {
+    const fetchProfile = async () => {
+      if (!user) return;
       setIsLoading(true);
-      if (user) {
-        const userDocRef = doc(db, 'users', user.uid);
-        const userDoc = await getDoc(userDocRef);
-        if (userDoc.exists()) {
-          const profileData = userDoc.data() as UserProfile;
-          if (!profileData.competencies) profileData.competencies = [];
-          if (!profileData.completedActivities) profileData.completedActivities = [];
-          if (!profileData.likedActivityIds) profileData.likedActivityIds = [];
-          setUserProfile(profileData);
-        } else {
-          setUserProfile(null);
-        }
+      const ref = doc(db, 'users', user.uid);
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        const prof = snap.data() as UserProfile;
+        if (!prof.competencies) prof.competencies = [];
+        if (!prof.completedActivities) prof.completedActivities = [];
+        if (!prof.likedActivityIds) prof.likedActivityIds = [];
+        setUserProfile(prof);
+        setNeedsOnboarding(!prof.grade);
+      } else {
+        setUserProfile(null);
+        setNeedsOnboarding(false);
       }
       setIsLoading(false);
     };
-    fetchUserProfile();
+    fetchProfile();
   }, [user]);
 
-  // 온보딩 필요 여부
-  useEffect(() => {
-    if (userProfile && !userProfile.grade) {
-      setNeedsOnboarding(true);
-    } else {
-      setNeedsOnboarding(false);
-    }
-  }, [userProfile]);
-
-  // 관심 활동 토글
+  // 좋아요 토글
   const handleToggleLike = async (activityId: string) => {
     if (!user || !userProfile) return;
-
-    const currentLikes = userProfile.likedActivityIds || [];
-    let newLikes: string[];
-
-    if (currentLikes.includes(activityId)) {
-      newLikes = currentLikes.filter((id) => id !== activityId);
+    const current = userProfile.likedActivityIds || [];
+    let newLikes: string[] = [];
+    if (current.includes(activityId)) {
+      newLikes = current.filter((id) => id !== activityId);
     } else {
-      newLikes = [...currentLikes, activityId];
+      newLikes = [...current, activityId];
     }
-
-    // optimistic update
-    const updatedProfile = { ...userProfile, likedActivityIds: newLikes };
-    setUserProfile(updatedProfile);
-
+    // optimistic
+    setUserProfile({ ...userProfile, likedActivityIds: newLikes });
     try {
-      const userDocRef = doc(db, 'users', user.uid);
-      await setDoc(userDocRef, { likedActivityIds: newLikes }, { merge: true });
-    } catch (error) {
-      console.error('Error updating likes: ', error);
-      // 실패 시 롤백
+      const ref = doc(db, 'users', user.uid);
+      await setDoc(ref, { likedActivityIds: newLikes }, { merge: true });
+    } catch (e) {
+      console.error(e);
       setUserProfile(userProfile);
     }
   };
 
-  const handleSignUp = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const { name, email, password } = event.currentTarget.elements as any;
+  // 회원가입
+  const handleSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const { name, email, password } = e.currentTarget.elements as any;
     try {
       setError('');
-      const userCredential = await createUserWithEmailAndPassword(auth, email.value, password.value);
-      const userDocRef = doc(db, 'users', userCredential.user.uid);
-      await setDoc(userDocRef, {
+      const cred = await createUserWithEmailAndPassword(auth, email.value, password.value);
+      const ref = doc(db, 'users', cred.user.uid);
+      await setDoc(ref, {
         name: name.value,
         email: email.value,
         competencies: [],
         completedActivities: [],
         likedActivityIds: [],
+        role: 'user',
       });
     } catch (err: any) {
       setError(err.message);
     }
   };
 
-  const handleSignIn = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const { email, password } = event.currentTarget.elements as any;
+  // 로그인
+  const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const { email, password } = e.currentTarget.elements as any;
     try {
       setError('');
       await signInWithEmailAndPassword(auth, email.value, password.value);
@@ -1113,53 +117,77 @@ function App() {
     }
   };
 
+  // 로그아웃
   const handleSignOut = async () => {
     await signOut(auth);
     setAuthView('signIn');
+    setAppView('dashboard');
   };
 
-  const handleOnboardingComplete = (updatedProfile: UserProfile) => {
-    setUserProfile(updatedProfile);
+  const handleOnboardingComplete = (profile: UserProfile) => {
+    setUserProfile(profile);
     setNeedsOnboarding(false);
   };
 
+  // 로딩 화면
   if (isLoading) {
     return (
-      <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center' }}>
-        Loading...
-      </div>
+      <>
+        <Header user={user} onSignOut={handleSignOut} />
+        <main className="container" style={{ textAlign: 'center', paddingTop: '4rem' }}>
+          Loading...
+        </main>
+      </>
     );
   }
 
-  const renderContent = () => {
-    if (user) {
-      if (needsOnboarding) {
-        return <OnboardingForm user={user} onComplete={handleOnboardingComplete} />;
-      }
-      if (userProfile) {
-        return <Dashboard userProfile={userProfile} uid={user.uid} onToggleLike={handleToggleLike} />;
-      }
-      return (
-        <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center' }}>
-          Loading Profile...
-        </div>
-      );
-    }
+  // 비로그인
+  if (!user) {
     return (
-      <AuthForm
-        view={authView}
-        setView={setAuthView}
-        onSignUp={handleSignUp}
-        onSignIn={handleSignIn}
-        error={error}
-      />
+      <>
+        <Header user={null} onSignOut={handleSignOut} />
+        <main className="container">
+          <AuthPage view={authView} setView={setAuthView} onSignIn={handleSignIn} onSignUp={handleSignUp} error={error} />
+        </main>
+      </>
     );
-  };
+  }
+
+  // 온보딩 필요
+  if (needsOnboarding || !userProfile) {
+    return (
+      <>
+        <Header user={user} onSignOut={handleSignOut} />
+        <main className="container">
+          <OnboardingPage user={user} onComplete={handleOnboardingComplete} />
+        </main>
+      </>
+    );
+  }
+
+  // 여기부터는 로그인 + 프로필 있음
+  const isAdmin = userProfile.role === 'admin';
 
   return (
     <>
       <Header user={user} onSignOut={handleSignOut} />
-      <main className="container">{renderContent()}</main>
+      <main className="container">
+        {appView === 'dashboard' && (
+          <DashboardPage
+            userProfile={userProfile}
+            uid={user.uid}
+            onToggleLike={handleToggleLike}
+            onGoMyPage={() => setAppView('mypage')}
+            onGoAdmin={isAdmin ? () => setAppView('admin') : undefined}
+          />
+        )}
+        {appView === 'mypage' && (
+          <MyPage userProfile={userProfile} uid={user.uid} onToggleLike={handleToggleLike} onBack={() => setAppView('dashboard')} />
+        )}
+        {appView === 'admin' && isAdmin && (
+          <AdminPage onBack={() => setAppView('dashboard')} /> // <- 네가 만든 관리자 컴포넌트
+        )}
+      </main>
     </>
   );
 }
