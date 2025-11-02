@@ -229,7 +229,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ onBack }) => {
   return (
     <div className="admin-container">
       <div className="mypage-header">
-        <h2 className="mypage-title">활동 관리 (Admin)</h2>
+        <h2 className="mypage-title">활동 관리</h2>
         <button onClick={onBack} type="button" className="button button-secondary">
           대시보드로 돌아가기
         </button>

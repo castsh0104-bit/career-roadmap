@@ -34,7 +34,7 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ user, onComplete }) => 
         email: snap.exists() ? (snap.data() as UserProfile).email : user.email || '',
         grade: parseInt(grade, 10),
         major,
-        // 없을 때 기본값 깔아주기
+        // 없을 때 기본값 
         competencies: snap.exists() ? (snap.data() as UserProfile).competencies || [] : [],
         completedActivities: snap.exists() ? (snap.data() as UserProfile).completedActivities || [] : [],
         likedActivityIds: snap.exists() ? (snap.data() as UserProfile).likedActivityIds || [] : [],

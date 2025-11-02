@@ -18,7 +18,7 @@ export interface UserProfile {
   major?: string;
   completedActivities?: MyActivity[];
   likedActivityIds?: string[];
-  role?: string; // "admin" 같은 거
+  role?: string; // "admin" 
 }
 
 export type ActivityCategory = '채용' | '인턴' | '공모전' | '자격증';
@@ -48,13 +48,5 @@ export interface RoadmapStep {
   description: string;
   recommendations: string[];
   recommendedCompetencies: string[];
-}
-
-// 자기소개서 문서 타입
-export interface Essay {
-  id: string;
-  title: string;
-  body: string;      // plain text or markdown
-  updatedAt: number; // epoch(ms) - 정렬/표시용
 }
 

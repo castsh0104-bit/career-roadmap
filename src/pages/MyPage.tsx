@@ -23,7 +23,7 @@ interface MyPageProps {
 
 const MyPage: React.FC<MyPageProps> = ({ userProfile, uid, onToggleLike, onBack }) => {
   // ───────── 탭 ─────────
-  // essay -> portfolio 로 교체
+
   const [activeTab, setActiveTab] = useState<'info' | 'history' | 'likes' | 'portfolio'>('info');
 
   // ───────── 기본/관심/활동 ─────────

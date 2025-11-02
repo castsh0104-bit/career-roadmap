@@ -93,7 +93,7 @@ const RoadmapEditor: React.FC = () => {
     if (editingIndex !== null) next[editingIndex] = payload;
     else next.push(payload);
 
-    // grade 오름차순으로 정렬 보장
+    // grade 오름차순
     next.sort((a, b) => a.grade - b.grade);
 
     const id = mapMajorToDocId(major);

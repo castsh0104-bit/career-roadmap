@@ -10,7 +10,7 @@ interface DashboardPageProps {
   uid: string;
   onToggleLike: (id: string) => void;
   onGoMyPage: () => void;
-  onGoAdmin?: () => void; // admin일 때만 뜨게
+  onGoAdmin?: () => void; // admin일 때만
 }
 
 const DashboardPage: React.FC<DashboardPageProps> = ({
@@ -77,9 +77,9 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
       setActivities(withRate);
     };
     fetchActs();
-  }, [userProfile.major, activeCategory]); // ← 여기까지는 네 거랑 같음
+  }, [userProfile.major, activeCategory]); 
 
-  // 🔹 ❗역량이 바뀌었을 때만 매칭률 다시 계산 (DB 다시 안 불러옴)
+  //  역량이 바뀌었을 때만 매칭률 다시 계산 (DB 다시 안 불러옴)
   useEffect(() => {
     setActivities((prev) =>
       prev.map((a) => ({
@@ -87,9 +87,9 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
         matchRate: getMatchRate(a, userProfile.competencies || []),
       })),
     );
-  }, [userProfile.competencies]); // ← 이 부분이 추가된 부분
+  }, [userProfile.competencies]); 
 
-  // 🔹 화면에 보여줄 활동 계산 (검색 + 정렬)
+  //  화면에 보여줄 활동 계산 (검색 + 정렬)
   const displayedActivities = useMemo(() => {
     const lower = searchTerm.toLowerCase().trim();
     const filtered = activities.filter((a) => {

@@ -15,7 +15,7 @@ import AuthPage from './pages/AuthPage';
 import OnboardingPage from './pages/OnboardingPage';
 import DashboardPage from './pages/DashboardPage';
 import MyPage from './pages/MyPage';
-import AdminPage from './pages/AdminPage'; // ← 너가 만든 관리자 페이지
+import AdminPage from './pages/AdminPage'; 
 import type { UserProfile } from './types';
 
 function App() {
@@ -27,7 +27,7 @@ function App() {
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [appView, setAppView] = useState<'dashboard' | 'mypage' | 'admin'>('dashboard');
 
-  // 로그인 상태 구독
+  // 로그인 상태 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);

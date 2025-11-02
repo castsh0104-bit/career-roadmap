@@ -1,5 +1,5 @@
 // src/firebase.ts
-// 이 파일은 Firebase 관련 설정만을 전문적으로 담당합니다.
+// 이 파일은 Firebase 관련 설정만
 
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
@@ -18,7 +18,7 @@ const firebaseConfig = {
 // Firebase 앱 초기화
 const app = initializeApp(firebaseConfig);
 
-// 다른 파일에서 가져다 쓸 수 있도록 auth와 db를 export(수출)합니다.
+// 다른 파일에서 가져다 쓸 수 있도록 auth와 db를 export
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 

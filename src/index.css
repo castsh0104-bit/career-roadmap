@@ -1,5 +1,3 @@
-/* IT 커리어 로드맵 - 전역 스타일 시트 */
-
 /* 기본 */
 body {
   margin: 0;
@@ -387,7 +385,7 @@ textarea.input {
   .mypage-title {
     font-size: 1.5rem;
   }
-  /* 인라인 flex row들을 모바일에서 column으로 강제 */
+  
   div[style*='justify-content: space-between'] {
     flex-direction: column;
     align-items: stretch;
@@ -404,7 +402,6 @@ textarea.input {
   }
 }
 
-/* Admin 전용 목록 그리드: 기본 3열, 화면 줄면 2→1열 */
 .admin-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -420,7 +417,7 @@ textarea.input {
 
 /* 카테고리 배지 기본 */
 .activity-type-badge {
-  background-color: #e5e7eb; /* fallback */
+  background-color: #e5e7eb; 
   color: #111827;
 }
 

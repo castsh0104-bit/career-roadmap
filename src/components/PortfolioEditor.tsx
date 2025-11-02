@@ -22,7 +22,7 @@ const DEFAULT: Portfolio = {
 interface Props {
   uid: string;
   defaultName?: string;  // userProfile.name 로 기본값 채워주기용(선택)
-  defaultEmail?: string; // 지금은 표시만, 저장 필드에는 포함 안 함(원하면 확장 가능)
+  defaultEmail?: string; // 지금은 표시만, 저장 필드에는 포함 안 함
 }
 
 const PortfolioEditor: React.FC<Props> = ({ uid, defaultName }) => {
