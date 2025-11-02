@@ -2,8 +2,17 @@
 import React, { useEffect, useState } from 'react';
 import type { UserProfile, MyActivity, Activity, ActivityWithMatchRate } from '../types';
 import { db } from '../firebase';
-import { collection, doc, getDocs, query, setDoc, where, documentId } from 'firebase/firestore';
+import {
+  collection,
+  doc,
+  getDocs,
+  query,
+  setDoc,
+  where,
+  documentId,
+} from 'firebase/firestore';
 import ActivityCard from '../components/ActivityCard';
+import PortfolioEditor from '../components/PortfolioEditor';
 
 interface MyPageProps {
   userProfile: UserProfile;
@@ -13,7 +22,11 @@ interface MyPageProps {
 }
 
 const MyPage: React.FC<MyPageProps> = ({ userProfile, uid, onToggleLike, onBack }) => {
-  const [activeTab, setActiveTab] = useState<'info' | 'history' | 'likes'>('info');
+  // ───────── 탭 ─────────
+  // essay -> portfolio 로 교체
+  const [activeTab, setActiveTab] = useState<'info' | 'history' | 'likes' | 'portfolio'>('info');
+
+  // ───────── 기본/관심/활동 ─────────
   const [competencies, setCompetencies] = useState((userProfile.competencies || []).join(', '));
   const [myActivities, setMyActivities] = useState<MyActivity[]>(userProfile.completedActivities || []);
   const [message, setMessage] = useState('');
@@ -143,6 +156,7 @@ const MyPage: React.FC<MyPageProps> = ({ userProfile, uid, onToggleLike, onBack 
     }
   };
 
+  // ───────── 렌더 ─────────
   return (
     <div className="mypage-container">
       <div className="mypage-header">
@@ -171,24 +185,22 @@ const MyPage: React.FC<MyPageProps> = ({ userProfile, uid, onToggleLike, onBack 
         >
           관심 활동
         </button>
+        <button
+          onClick={() => setActiveTab('portfolio')}
+          className={`tab-button ${activeTab === 'portfolio' ? 'active' : ''}`}
+        >
+          포트폴리오
+        </button>
       </div>
 
       {activeTab === 'info' && (
         <div>
           <div className="info-box">
             <h3>기본 정보</h3>
-            <p>
-              <strong>이름:</strong> {userProfile.name}
-            </p>
-            <p>
-              <strong>이메일:</strong> {userProfile.email}
-            </p>
-            <p>
-              <strong>학년:</strong> {userProfile.grade}학년
-            </p>
-            <p>
-              <strong>전공 계열:</strong> {userProfile.major}
-            </p>
+            <p><strong>이름:</strong> {userProfile.name}</p>
+            <p><strong>이메일:</strong> {userProfile.email}</p>
+            <p><strong>학년:</strong> {userProfile.grade}학년</p>
+            <p><strong>전공 계열:</strong> {userProfile.major}</p>
           </div>
           <form onSubmit={handleCompetencyUpdate} className="auth-form-container form-box">
             <h3>나의 역량 수정</h3>
@@ -288,9 +300,7 @@ const MyPage: React.FC<MyPageProps> = ({ userProfile, uid, onToggleLike, onBack 
 
       {activeTab === 'likes' && (
         <div>
-          <h3 className="mypage-title" style={{ fontSize: '1.25rem' }}>
-            내가 관심있는 활동
-          </h3>
+          <h3 className="mypage-title" style={{ fontSize: '1.25rem' }}>내가 관심있는 활동</h3>
           {isLikeLoading ? (
             <div className="info-box" style={{ textAlign: 'center' }}>
               <p>관심 활동을 불러오는 중입니다...</p>
@@ -301,7 +311,7 @@ const MyPage: React.FC<MyPageProps> = ({ userProfile, uid, onToggleLike, onBack 
                 <ActivityCard
                   key={act.id}
                   activity={act}
-                  // 🔽 여기만 변경
+                  // 입력창 값 기반 미리보기
                   userCompetencies={competencies.split(',').map((s) => s.trim()).filter(Boolean)}
                   isLiked={(userProfile.likedActivityIds || []).includes(act.id)}
                   onToggleLike={onToggleLike}
@@ -314,6 +324,10 @@ const MyPage: React.FC<MyPageProps> = ({ userProfile, uid, onToggleLike, onBack 
             </div>
           )}
         </div>
+      )}
+
+      {activeTab === 'portfolio' && (
+        <PortfolioEditor uid={uid} defaultName={userProfile.name} />
       )}
     </div>
   );

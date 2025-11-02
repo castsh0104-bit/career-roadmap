@@ -49,3 +49,12 @@ export interface RoadmapStep {
   recommendations: string[];
   recommendedCompetencies: string[];
 }
+
+// 자기소개서 문서 타입
+export interface Essay {
+  id: string;
+  title: string;
+  body: string;      // plain text or markdown
+  updatedAt: number; // epoch(ms) - 정렬/표시용
+}
+
