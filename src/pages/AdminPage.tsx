@@ -1,6 +1,7 @@
 // src/pages/AdminPage.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { db } from '../firebase';
+import RoadmapEditor from '../components/RoadmapEditor';
 import {
   addDoc,
   collection,
@@ -9,6 +10,11 @@ import {
   getDocs,
   Timestamp,
   updateDoc,
+  query,
+  where,
+  orderBy,
+  limit,
+  serverTimestamp,
 } from 'firebase/firestore';
 import type { Activity } from '../types';
 
@@ -16,44 +22,109 @@ interface AdminPageProps {
   onBack: () => void;
 }
 
+/**
+ * AdminPage
+ * - activities 컬렉션 CRUD
+ * - 검색(클라) + 카테고리 필터(서버)
+ * - 정렬: createdAt desc 고정
+ * - 인덱스: category == + createdAt desc (최초 1회 생성 필요)
+ */
+
+// 폼 기본값
+const DEFAULT_FORM = {
+  title: '',
+  companyName: '',
+  content: '',
+  employmentType: '',
+  location: '',
+  category: '채용',
+  targetMajors: '',
+  requiredCompetencies: '',
+  applicationDeadline: '',
+  applyUrl: '',
+};
+
+// ✅ 카테고리 → 배지 색상 클래스 매핑
+const categoryClass = (c?: string) => {
+  switch (c) {
+    case '채용':   return 'badge-hire';
+    case '인턴':   return 'badge-intern';
+    case '공모전': return 'badge-contest';
+    case '자격증': return 'badge-cert';
+    default:       return '';
+  }
+};
+
 const AdminPage: React.FC<AdminPageProps> = ({ onBack }) => {
+  // 목록/검색/필터 상태
   const [activities, setActivities] = useState<Activity[]>([]);
-  // 👉 이게 “지금 수정 중인 활동 id” (null이면 신규 등록 모드)
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] =
+    useState<'전체' | '채용' | '인턴' | '공모전' | '자격증'>('전체');
 
-  const [formData, setFormData] = useState({
-    title: '',
-    companyName: '',
-    content: '',
-    employmentType: '',
-    location: '',
-    category: '채용',
-    targetMajors: '',
-    requiredCompetencies: '',
-    applicationDeadline: '',
-    applyUrl: '',
-  });
+  // 인덱스 에러 메시지
+  const [indexError, setIndexError] = useState<string | null>(null);
 
-  // 리스트 불러오기
+  const MAX_FETCH = 200;
+
+  // 서버 로드
   const fetchActivities = async () => {
-    const snap = await getDocs(collection(db, 'activities'));
-    const data = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as Activity[];
-    setActivities(data);
+    setIsLoading(true);
+    setIndexError(null);
+    try {
+      const colRef = collection(db, 'activities');
+      const clauses: any[] = [];
+      if (categoryFilter !== '전체') {
+        clauses.push(where('category', '==', categoryFilter));
+      }
+      clauses.push(orderBy('createdAt', 'desc'));
+      clauses.push(limit(MAX_FETCH));
+
+      const snap = await getDocs(query(colRef, ...clauses));
+      const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Activity));
+      setActivities(rows);
+    } catch (e: any) {
+      console.error(e);
+      setActivities([]);
+      if (e?.code === 'failed-precondition') {
+        setIndexError('이 쿼리는 Firestore 복합 인덱스가 필요합니다. 콘솔 에러의 링크로 이동해 한 번 생성해 주세요.');
+      } else {
+        setIndexError('목록을 불러오는 중 문제가 발생했습니다. 콘솔 로그를 확인하세요.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
     fetchActivities();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categoryFilter]);
 
-  // 공통 입력 핸들러
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
-  ) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
+  // 현재 결과에서만 클라 검색
+  const displayedActivities = useMemo(() => {
+    const s = search.trim().toLowerCase();
+    if (!s) return activities;
+    return activities.filter((a) => {
+      const title = (a.title || '').toLowerCase();
+      const company = (a.companyName || '').toLowerCase();
+      const content = (a.content || '').toLowerCase();
+      const comps = (a.requiredCompetencies || []).join(',').toLowerCase();
+      return (
+        title.includes(s) ||
+        company.includes(s) ||
+        content.includes(s) ||
+        comps.includes(s)
+      );
+    });
+  }, [search, activities]);
 
-  // 날짜(Timestamp) → input[type=date] 에 넣을 문자열로
+  // CRUD 상태
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formData, setFormData] = useState(DEFAULT_FORM);
+
+  // Timestamp → yyyy-mm-dd
   const toDateInputValue = (ts: Timestamp) => {
     const d = ts.toDate();
     const year = d.getFullYear();
@@ -62,10 +133,15 @@ const AdminPage: React.FC<AdminPageProps> = ({ onBack }) => {
     return `${year}-${month}-${day}`;
   };
 
-  // 등록/수정 공통 submit
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
+  ) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-
     if (!formData.title.trim()) {
       alert('제목은 필수입니다.');
       return;
@@ -75,22 +151,13 @@ const AdminPage: React.FC<AdminPageProps> = ({ onBack }) => {
       return;
     }
 
-    // 문자열 → 배열
     const targetMajors = formData.targetMajors
-      ? formData.targetMajors
-          .split(',')
-          .map((v) => v.trim())
-          .filter(Boolean)
+      ? formData.targetMajors.split(',').map((v) => v.trim()).filter(Boolean)
       : [];
-
     const requiredCompetencies = formData.requiredCompetencies
-      ? formData.requiredCompetencies
-          .split(',')
-          .map((v) => v.trim())
-          .filter(Boolean)
+      ? formData.requiredCompetencies.split(',').map((v) => v.trim()).filter(Boolean)
       : [];
 
-    // 공통 필드
     const baseData = {
       title: formData.title,
       companyName: formData.companyName,
@@ -100,19 +167,19 @@ const AdminPage: React.FC<AdminPageProps> = ({ onBack }) => {
       category: formData.category as Activity['category'],
       targetMajors,
       requiredCompetencies,
-      applicationDeadline: Timestamp.fromDate(new Date(formData.applicationDeadline)),
+      applicationDeadline: Timestamp.fromDate(
+        new Date(`${formData.applicationDeadline}T00:00:00`)
+      ),
       applyUrl: formData.applyUrl || '',
     };
 
-    // ✅ 수정 모드
     if (editingId) {
       await updateDoc(doc(db, 'activities', editingId), {
         ...baseData,
-        // createdAt 은 원래 거 유지하고 싶으면 안 넣는다
+        updatedAt: serverTimestamp(),
       });
       alert('활동이 수정되었습니다.');
     } else {
-      // ✅ 신규 등록 모드
       await addDoc(collection(db, 'activities'), {
         ...baseData,
         createdAt: Timestamp.now(),
@@ -120,26 +187,11 @@ const AdminPage: React.FC<AdminPageProps> = ({ onBack }) => {
       alert('새 활동이 등록되었습니다.');
     }
 
-    // 폼 초기화 + 수정모드 해제
-    setFormData({
-      title: '',
-      companyName: '',
-      content: '',
-      employmentType: '',
-      location: '',
-      category: '채용',
-      targetMajors: '',
-      requiredCompetencies: '',
-      applicationDeadline: '',
-      applyUrl: '',
-    });
+    setFormData(DEFAULT_FORM);
     setEditingId(null);
-
-    // 리스트 다시
     fetchActivities();
   };
 
-  // 🔵 카드에서 “수정” 눌렀을 때: 폼에 값 채워넣기
   const handleEditClick = (activity: Activity) => {
     setEditingId(activity.id);
     setFormData({
@@ -156,49 +208,24 @@ const AdminPage: React.FC<AdminPageProps> = ({ onBack }) => {
         : '',
       applyUrl: activity.applyUrl || '',
     });
-    // 이제 위 폼이 이 활동 데이터로 바뀐다
   };
 
-  // 삭제
   const handleDelete = async (id: string) => {
     if (!window.confirm('정말 삭제하시겠습니까?')) return;
     await deleteDoc(doc(db, 'activities', id));
-    // 혹시 이걸 수정중이었으면 폼도 리셋
     if (editingId === id) {
       setEditingId(null);
-      setFormData({
-        title: '',
-        companyName: '',
-        content: '',
-        employmentType: '',
-        location: '',
-        category: '채용',
-        targetMajors: '',
-        requiredCompetencies: '',
-        applicationDeadline: '',
-        applyUrl: '',
-      });
+      setFormData(DEFAULT_FORM);
     }
     fetchActivities();
   };
 
-  // 수정 취소 버튼용
   const handleCancelEdit = () => {
     setEditingId(null);
-    setFormData({
-      title: '',
-      companyName: '',
-      content: '',
-      employmentType: '',
-      location: '',
-      category: '채용',
-      targetMajors: '',
-      requiredCompetencies: '',
-      applicationDeadline: '',
-      applyUrl: '',
-    });
+    setFormData(DEFAULT_FORM);
   };
 
+  // ── 렌더
   return (
     <div className="admin-container">
       <div className="mypage-header">
@@ -208,7 +235,95 @@ const AdminPage: React.FC<AdminPageProps> = ({ onBack }) => {
         </button>
       </div>
 
-      {/* 폼 박스 */}
+      {/* 컨트롤 바 + 개수 */}
+      <div
+        className="info-box"
+        style={{
+          display: 'flex',
+          gap: '0.75rem',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          marginBottom: '1.5rem',
+        }}
+      >
+        <input
+          className="input"
+          placeholder="제목/회사/내용/역량 검색(현재 결과)"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ minWidth: 260, flex: '1 1 260px' }}
+        />
+        <select
+          className="input"
+          value={categoryFilter}
+          onChange={(e) =>
+            setCategoryFilter(e.target.value as '전체' | '채용' | '인턴' | '공모전' | '자격증')
+          }
+          style={{ width: 160 }}
+        >
+          <option value="전체">전체</option>
+          <option value="채용">채용</option>
+          <option value="인턴">인턴</option>
+          <option value="공모전">공모전</option>
+          <option value="자격증">자격증</option>
+        </select>
+        <span style={{ marginLeft: 'auto', fontSize: '0.875rem', color: '#6b7280' }}>
+          {isLoading ? '불러오는 중…' : `총 ${displayedActivities.length}건`}
+        </span>
+      </div>
+
+      {/* 인덱스 안내 */}
+      {indexError && (
+        <div className="info-box" style={{ borderColor: '#fca5a5', background: '#fff1f2', marginBottom: '1rem' }}>
+          <strong style={{ color: '#b91c1c' }}>인덱스 필요</strong>
+          <p style={{ margin: '0.5rem 0 0 0' }}>
+            {indexError}
+            <br />
+            콘솔 에러의 링크로 이동해 “Create index”를 눌러 생성하세요. 생성 후 1~2분 내로 정상 조회됩니다.
+          </p>
+        </div>
+      )}
+
+      <h3 style={{ marginBottom: '1rem', fontWeight: 'bold' }}>현재 등록된 활동</h3>
+
+      {/* 목록 그리드 */}
+      <div className="admin-grid" style={{ marginBottom: '2rem' }}>
+        {displayedActivities.length > 0 ? (
+          displayedActivities.map((act) => (
+            <div key={act.id} className="activity-card">
+              {/* ✅ 카테고리 배지(색상) */}
+              <span className={`activity-type-badge ${categoryClass(act.category)}`}>
+                {act.category}
+              </span>
+
+              <h4 className="activity-title" style={{ marginTop: 8 }}>{act.title}</h4>
+              <p>{act.content}</p>
+
+              {/* (보조) 고용형태 표기 */}
+              {act.employmentType && (
+                <div style={{ fontSize: '0.875rem', color: '#6b7280', marginTop: 6 }}>
+                  {act.employmentType}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+                <button onClick={() => handleEditClick(act)} className="button button-secondary">
+                  수정
+                </button>
+                <button onClick={() => handleDelete(act.id)} className="button button-danger">
+                  삭제
+                </button>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="info-box" style={{ gridColumn: '1 / -1', textAlign: 'center' }}>
+            {isLoading ? <p>불러오는 중...</p> : <p>조건에 맞는 활동이 없습니다.</p>}
+          </div>
+        )}
+      </div>
+
+      {/* 폼 */}
       <div className="form-box" style={{ marginBottom: '2rem' }}>
         <h3>{editingId ? '활동 수정' : '새 활동 등록'}</h3>
         <form onSubmit={handleSubmit}>
@@ -335,32 +450,10 @@ const AdminPage: React.FC<AdminPageProps> = ({ onBack }) => {
           </div>
         </form>
       </div>
-<h3 style={{ marginBottom: '1rem', fontWeight: 'bold' }}>현재 등록된 활동</h3>
-<div className="activity-grid">
-  {activities.length > 0 ? (
-    activities.map((act) => (
-      <div key={act.id} className="activity-card">
-        <span className="activity-type-badge">{act.category}</span>
-        <h4 className="activity-title">{act.title}</h4>
-        <p>{act.content}</p>
-        {/* 마감일은 관리자 화면에서는 숨김 */}
-        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
-          <button onClick={() => handleEditClick(act)} className="button button-secondary">
-            수정
-          </button>
-          <button onClick={() => handleDelete(act.id)} className="button button-danger">
-            삭제
-          </button>
-        </div>
-      </div>
-    ))
-  ) : (
-    <div className="info-box" style={{ gridColumn: '1 / -1', textAlign: 'center' }}>
-      <p>등록된 활동이 없습니다.</p>
+
+      {/* 로드맵 편집 */}
+      <RoadmapEditor />
     </div>
-  )}
-</div>
- </div>
   );
 };
 
