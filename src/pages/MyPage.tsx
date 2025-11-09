@@ -205,7 +205,7 @@ const MyPage: React.FC<MyPageProps> = ({ userProfile, uid, onToggleLike, onBack 
           <form onSubmit={handleCompetencyUpdate} className="auth-form-container form-box">
             <h3>나의 역량 수정</h3>
             <div className="input-group">
-              <label htmlFor="competencies">나의 역량</label>
+              <label htmlFor="competencies">나의 스킬</label>
               <p style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.5rem' }}>
                 {getPlaceholderText()}
               </p>

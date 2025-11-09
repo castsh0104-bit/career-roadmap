@@ -154,7 +154,9 @@ const RoadmapEditor: React.FC = () => {
         {filtered.length ? (
           filtered.map((s, i) => (
             <div key={i} className="activity-card">
-              <span className="activity-type-badge">{s.grade}학년</span>
+              <span className="activity-type-badge">
+  {s.grade === 5 ? '졸업생' : `${s.grade}학년`}
+</span>
               <h4 className="activity-title">{s.title}</h4>
               <p className="activity-content">{s.description}</p>
 
@@ -242,7 +244,7 @@ const RoadmapEditor: React.FC = () => {
             className="input"
             value={Array.isArray(form.recommendations) ? form.recommendations.join('\n') : (form.recommendations as any)}
             onChange={(e) => updateFormField('recommendations', e.target.value)}
-            placeholder={'예:\nC언어/Python 프로그래밍 수업 수강\n동아리 활동\nBOJ 브론즈 문제 풀기'}
+            placeholder={'예:\nC언어/Python 프로그래밍 수업 수강\n동아리 활동'}
             style={{ minHeight: 100 }}
           />
         </div>
@@ -257,7 +259,7 @@ const RoadmapEditor: React.FC = () => {
                 : (form.recommendedCompetencies as any)
             }
             onChange={(e) => updateFormField('recommendedCompetencies', e.target.value)}
-            placeholder={'예:\npython\nc\n자료구조'}
+            placeholder={'예:\npython\nc'}
             style={{ minHeight: 100 }}
           />
         </div>

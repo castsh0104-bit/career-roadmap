@@ -122,7 +122,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
               marginTop: 0,
             }}
           >
-            {userProfile.name}님을 위한 {roadmapStep.grade}학년 맞춤 로드맵
+          {userProfile.name}님을 위한
+          {roadmapStep.grade === 5 ? ' 졸업생' : ` ${roadmapStep.grade}학년`} 맞춤 로드맵
           </h2>
           <h3 className="activity-title">{roadmapStep.title}</h3>
           <p className="activity-content">{roadmapStep.description}</p>

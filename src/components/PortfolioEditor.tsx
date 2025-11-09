@@ -109,7 +109,7 @@ const PortfolioEditor: React.FC<Props> = ({ uid, defaultName }) => {
       </div>
 
       <div className="input-group">
-        <label>보유 기술</label>
+        <label>보유 기술 및 자격증</label>
         <textarea
           className="input"
           value={value.skills}
@@ -132,7 +132,7 @@ const PortfolioEditor: React.FC<Props> = ({ uid, defaultName }) => {
           className="input"
           value={value.activities}
           onChange={onChange('activities')}
-          placeholder="프로젝트/공모전/자격증 등 중요한 활동"
+          placeholder="프로젝트/공모전 등 중요한 활동"
         />
       </div>
 

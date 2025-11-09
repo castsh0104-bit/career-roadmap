@@ -169,7 +169,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({ activity, userCompetencies,
       </div>
 
       <div style={{ marginTop: '1.5rem' }}>
-        <p style={{ fontWeight: 'bold', fontSize: '1.125rem' }}>나의 역량 매칭률: {matchRate}%</p>
+        <p style={{ fontWeight: 'bold', fontSize: '1.125rem' }}>스킬 매칭률: {matchRate}%</p>
         <div className="match-rate-bar-bg" style={{ marginTop: '0.5rem' }}>
           <div
             className="match-rate-bar"
