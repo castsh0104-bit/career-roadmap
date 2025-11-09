@@ -54,7 +54,7 @@ const LikeIcon = ({ isLiked }: { isLiked: boolean }) => (
   </svg>
 );
 
-// ── util
+
 const convertFirestoreTimestampToDate = (timestamp: Timestamp): Date => {
   if (!timestamp || typeof (timestamp as any).toDate !== 'function') return new Date();
   return timestamp.toDate();
@@ -72,7 +72,7 @@ const calculateDday = (deadline: Timestamp) => {
   return <span style={{ color: '#22c55e', fontWeight: 'bold' }}>D-{diffDays}</span>;
 };
 
-// ✅ 카테고리 → 색상 클래스 매핑
+
 const categoryClass = (c?: string) => {
   switch (c) {
     case '채용':   return 'badge-hire';
@@ -127,12 +127,12 @@ const ActivityCard: React.FC<ActivityCardProps> = ({ activity, userCompetencies,
             <span>{activity.companyName || '회사정보 없음'}</span>
           </div>
 
-          {/* ✅ 카테고리 배지(색상 적용) */}
+          {/*  카테고리 배지*/}
           <span className={`activity-type-badge ${categoryClass(activity.category)}`}>
             {activity.category || '카테고리'}
           </span>
 
-          {/* (보조) 고용형태 텍스트 */}
+          {/* 고용형태 텍스트 */}
           {activity.employmentType && (
             <div style={{ fontSize: '0.875rem', color: '#6b7280', marginTop: 6 }}>
               {activity.employmentType}

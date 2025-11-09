@@ -1,4 +1,3 @@
-// src/pages/AuthPage.tsx
 import React from 'react';
 
 interface AuthPageProps {

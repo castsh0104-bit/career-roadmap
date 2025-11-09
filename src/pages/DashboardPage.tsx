@@ -1,4 +1,3 @@
-// src/pages/DashboardPage.tsx
 import React, { useEffect, useMemo, useState } from 'react';
 import type { Activity, ActivityCategory, ActivityWithMatchRate, UserProfile, RoadmapStep } from '../types';
 import { db } from '../firebase';
@@ -26,7 +25,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [roadmapStep, setRoadmapStep] = useState<RoadmapStep | null>(null);
 
-  // 🔹 매칭률 계산 함수
+  //  매칭률 계산 함수
   const getMatchRate = (activity: Activity, userCompetencies: string[]): number => {
     if (!userCompetencies?.length || !activity.requiredCompetencies?.length) return 0;
     const lowerUser = userCompetencies.map((s) => s.toLowerCase());
@@ -35,7 +34,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
     return Math.round((matchCount / lowerReq.length) * 100);
   };
 
-  // 🔹 로드맵 불러오기
+  //  로드맵 불러오기
   useEffect(() => {
     const fetchRoadmap = async () => {
       if (!userProfile.major || !userProfile.grade) return;
@@ -53,7 +52,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
     fetchRoadmap();
   }, [userProfile.major, userProfile.grade]);
 
-  // 🔹 활동 불러오기 (전공 + 카테고리 기준)
+  //  활동 불러오기 (전공 + 카테고리 기준)
   useEffect(() => {
     const fetchActs = async () => {
       if (!userProfile.major) return;

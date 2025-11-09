@@ -85,7 +85,7 @@ body {
   background-color: #dc2626;
 }
 
-/* 삭제 / 위험 버튼 */
+/* 삭제 버튼 */
 .button-danger {
   background-color: #ef4444;
   color: #ffffff;
@@ -422,19 +422,19 @@ textarea.input {
 }
 
 /* 카테고리별 색상 (채용/인턴/공모전/자격증) */
-.badge-hire {             /* 채용 */
+.badge-hire {             
   background-color: #dbeafe; /* 하늘 */
   color: #1e40af;
 }
-.badge-intern {           /* 인턴 */
+.badge-intern {           
   background-color: #dcfce7; /* 연초록 */
   color: #166534;
 }
-.badge-contest {          /* 공모전 */
+.badge-contest {          
   background-color: #fee2e2; /* 살구/연빨강 */
   color: #991b1b;
 }
-.badge-cert {             /* 자격증 */
+.badge-cert {             
   background-color: #fef3c7; /* 크림 */
   color: #92400e;
 }

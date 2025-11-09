@@ -1,4 +1,3 @@
-// src/pages/MyPage.tsx
 import React, { useEffect, useState } from 'react';
 import type { UserProfile, MyActivity, Activity, ActivityWithMatchRate } from '../types';
 import { db } from '../firebase';
@@ -22,11 +21,11 @@ interface MyPageProps {
 }
 
 const MyPage: React.FC<MyPageProps> = ({ userProfile, uid, onToggleLike, onBack }) => {
-  // ───────── 탭 ─────────
+  
 
   const [activeTab, setActiveTab] = useState<'info' | 'history' | 'likes' | 'portfolio'>('info');
 
-  // ───────── 기본/관심/활동 ─────────
+  
   const [competencies, setCompetencies] = useState((userProfile.competencies || []).join(', '));
   const [myActivities, setMyActivities] = useState<MyActivity[]>(userProfile.completedActivities || []);
   const [message, setMessage] = useState('');
@@ -156,7 +155,7 @@ const MyPage: React.FC<MyPageProps> = ({ userProfile, uid, onToggleLike, onBack 
     }
   };
 
-  // ───────── 렌더 ─────────
+  
   return (
     <div className="mypage-container">
       <div className="mypage-header">
@@ -311,7 +310,7 @@ const MyPage: React.FC<MyPageProps> = ({ userProfile, uid, onToggleLike, onBack 
                 <ActivityCard
                   key={act.id}
                   activity={act}
-                  // 입력창 값 기반 미리보기
+                  
                   userCompetencies={competencies.split(',').map((s) => s.trim()).filter(Boolean)}
                   isLiked={(userProfile.likedActivityIds || []).includes(act.id)}
                   onToggleLike={onToggleLike}

@@ -1,4 +1,3 @@
-// src/components/RoadmapEditor.tsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { db } from '../firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -48,7 +47,7 @@ const RoadmapEditor: React.FC = () => {
     [steps, searchGrade],
   );
 
-  // 폼 핸들러
+  
   const updateFormField = (k: keyof RoadmapStep, v: any) =>
     setForm((prev) => ({ ...prev, [k]: v }));
 
@@ -58,19 +57,19 @@ const RoadmapEditor: React.FC = () => {
       .map((s) => s.trim())
       .filter(Boolean);
 
-  // 편집 시작
+  
   const startEdit = (idx: number) => {
     setEditingIndex(idx);
     setForm({ ...steps[idx] });
   };
 
-  // 폼 리셋
+  
   const resetForm = () => {
     setEditingIndex(null);
     setForm(emptyStep);
   };
 
-  // 저장(추가/수정)
+  
   const saveStep = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.title.trim()) {

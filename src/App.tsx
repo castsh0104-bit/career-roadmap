@@ -1,4 +1,3 @@
-// src/App.tsx
 import React, { useEffect, useState } from 'react';
 import './index.css';
 import { auth, db } from './firebase';
@@ -165,7 +164,7 @@ function App() {
     );
   }
 
-  // 여기부터는 로그인 + 프로필 있음
+  // 여기부터 로그인 + 프로필 있음
   const isAdmin = userProfile.role === 'admin';
 
   return (
@@ -185,7 +184,7 @@ function App() {
           <MyPage userProfile={userProfile} uid={user.uid} onToggleLike={handleToggleLike} onBack={() => setAppView('dashboard')} />
         )}
         {appView === 'admin' && isAdmin && (
-          <AdminPage onBack={() => setAppView('dashboard')} /> // <- 네가 만든 관리자 컴포넌트
+          <AdminPage onBack={() => setAppView('dashboard')} /> 
         )}
       </main>
     </>

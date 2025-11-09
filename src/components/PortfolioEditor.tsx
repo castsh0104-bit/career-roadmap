@@ -1,4 +1,3 @@
-// src/components/PortfolioEditor.tsx
 import React, { useEffect, useState } from 'react';
 import { db } from '../firebase';
 import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
@@ -6,7 +5,7 @@ import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 type Portfolio = {
   name: string;
   summary: string;       // 간단 소개
-  skills: string;        // 쉼표로 구분된 문자열로 저장(간단)
+  skills: string;        // 쉼표로 구분 문자열로 저장
   experience: string;    // 경력
   activities: string;    // 주요 활동
 };
@@ -21,8 +20,8 @@ const DEFAULT: Portfolio = {
 
 interface Props {
   uid: string;
-  defaultName?: string;  // userProfile.name 로 기본값 채워주기용(선택)
-  defaultEmail?: string; // 지금은 표시만, 저장 필드에는 포함 안 함
+  defaultName?: string;  
+  defaultEmail?: string; 
 }
 
 const PortfolioEditor: React.FC<Props> = ({ uid, defaultName }) => {
@@ -48,7 +47,7 @@ const PortfolioEditor: React.FC<Props> = ({ uid, defaultName }) => {
             activities: data.activities ?? '',
           });
         } else {
-          // 문서가 없으면 기본값 + 이름만 채움
+          // 문서가 없으면 기본값 이름만 채움
           setValue((v) => ({ ...v, name: defaultName ?? '' }));
         }
       } finally {
@@ -56,7 +55,7 @@ const PortfolioEditor: React.FC<Props> = ({ uid, defaultName }) => {
       }
     };
     run();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    
   }, [uid]);
 
   const onChange =

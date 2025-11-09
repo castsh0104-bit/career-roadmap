@@ -1,4 +1,3 @@
-// src/pages/AdminPage.tsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { db } from '../firebase';
 import RoadmapEditor from '../components/RoadmapEditor';
@@ -22,14 +21,6 @@ interface AdminPageProps {
   onBack: () => void;
 }
 
-/**
- * AdminPage
- * - activities 컬렉션 CRUD
- * - 검색(클라) + 카테고리 필터(서버)
- * - 정렬: createdAt desc 고정
- * - 인덱스: category == + createdAt desc (최초 1회 생성 필요)
- */
-
 // 폼 기본값
 const DEFAULT_FORM = {
   title: '',
@@ -44,7 +35,7 @@ const DEFAULT_FORM = {
   applyUrl: '',
 };
 
-// ✅ 카테고리 → 배지 색상 클래스 매핑
+
 const categoryClass = (c?: string) => {
   switch (c) {
     case '채용':   return 'badge-hire';
@@ -99,10 +90,10 @@ const AdminPage: React.FC<AdminPageProps> = ({ onBack }) => {
 
   useEffect(() => {
     fetchActivities();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    
   }, [categoryFilter]);
 
-  // 현재 결과에서만 클라 검색
+  // 현재 결과에서만 검색
   const displayedActivities = useMemo(() => {
     const s = search.trim().toLowerCase();
     if (!s) return activities;
@@ -120,11 +111,11 @@ const AdminPage: React.FC<AdminPageProps> = ({ onBack }) => {
     });
   }, [search, activities]);
 
-  // CRUD 상태
+  
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState(DEFAULT_FORM);
 
-  // Timestamp → yyyy-mm-dd
+  
   const toDateInputValue = (ts: Timestamp) => {
     const d = ts.toDate();
     const year = d.getFullYear();
@@ -225,7 +216,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ onBack }) => {
     setFormData(DEFAULT_FORM);
   };
 
-  // ── 렌더
+  
   return (
     <div className="admin-container">
       <div className="mypage-header">
@@ -291,7 +282,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ onBack }) => {
         {displayedActivities.length > 0 ? (
           displayedActivities.map((act) => (
             <div key={act.id} className="activity-card">
-              {/* ✅ 카테고리 배지(색상) */}
+              {/*  카테고리 배지(색상) */}
               <span className={`activity-type-badge ${categoryClass(act.category)}`}>
                 {act.category}
               </span>
@@ -299,7 +290,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ onBack }) => {
               <h4 className="activity-title" style={{ marginTop: 8 }}>{act.title}</h4>
               <p>{act.content}</p>
 
-              {/* (보조) 고용형태 표기 */}
+              {/* 고용형태 표기 */}
               {act.employmentType && (
                 <div style={{ fontSize: '0.875rem', color: '#6b7280', marginTop: 6 }}>
                   {act.employmentType}

@@ -1,5 +1,3 @@
-// src/types.ts
-
 import { Timestamp } from 'firebase/firestore';
 
 export interface MyActivity {
@@ -35,7 +33,7 @@ export interface Activity {
   createdAt: Timestamp;
   targetMajors: string[];
   category: ActivityCategory;
-  applyUrl?: string; // optional
+  applyUrl?: string; 
 }
 
 export interface ActivityWithMatchRate extends Activity {

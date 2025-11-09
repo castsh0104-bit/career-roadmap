@@ -1,4 +1,3 @@
-// src/pages/OnboardingPage.tsx
 import React, { useState } from 'react';
 import type { User } from 'firebase/auth';
 import { db } from '../firebase';
@@ -28,13 +27,13 @@ const OnboardingPage: React.FC<OnboardingPageProps> = ({ user, onComplete }) => 
       const snap = await getDoc(userRef);
 
       const updated: UserProfile = {
-        // 문서가 있으면 기존 정보 유지
+        
         ...(snap.exists() ? (snap.data() as UserProfile) : {}),
         name: snap.exists() ? (snap.data() as UserProfile).name : user.displayName || '이름 없음',
         email: snap.exists() ? (snap.data() as UserProfile).email : user.email || '',
         grade: parseInt(grade, 10),
         major,
-        // 없을 때 기본값 
+        
         competencies: snap.exists() ? (snap.data() as UserProfile).competencies || [] : [],
         completedActivities: snap.exists() ? (snap.data() as UserProfile).completedActivities || [] : [],
         likedActivityIds: snap.exists() ? (snap.data() as UserProfile).likedActivityIds || [] : [],
